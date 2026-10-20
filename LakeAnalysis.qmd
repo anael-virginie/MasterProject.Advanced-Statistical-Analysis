@@ -53,6 +53,31 @@ col.sub_basin <- c(
   "Lehtiselkä" = "green4",
   "Judinsalonselkä" = "purple3"
 )
+
+# Variables globales
+variables.nutriments <- c(
+  "P_municipal", "P_industrial", "P_other",
+  "N_municipal", "N_industrial", "N_other",
+  "BOD_municipal", "BOD_industrial"
+)
+
+# Fonction de résumé numérique
+resume_numerique <- function(df) {
+  df %>%
+    select(where(is.numeric)) %>%
+    pivot_longer(everything(), names_to = "variable", values_to = "valeur") %>%
+    group_by(variable) %>%
+    summarise(
+      n = sum(!is.na(valeur)),
+      NA_n = sum(is.na(valeur)),
+      min = min(valeur, na.rm = TRUE),
+      mediana = median(valeur, na.rm = TRUE),
+      media = mean(valeur, na.rm = TRUE),
+      max = max(valeur, na.rm = TRUE),
+      sd = sd(valeur, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
 ```
 
 # Présentation des jeux de données
@@ -181,7 +206,7 @@ Les trois valeurs extrêmes identifiées sont présentées dans le @tbl-extremes
 
 Nous avons choisi de conserver ces valeurs, car aucun élément ne permet de confirmer une erreur de mesure. Elles pourraient donc refléter une variabilité écologique réelle. Leur influence sera évaluée lors de la modélisation (*TAG PARTIE OU CELA EST RÉALISÉ) ⚠️⚠️⚠️⚠️⚠️⚠️*.
 
-```{r valeurs-extremes-fish}
+```{r}
 #| label: tbl-extremes-fish
 #| tbl-cap: "Observations présentant des valeurs extrêmes de captures de poissons"
 
@@ -193,7 +218,7 @@ data.biotic %>%
   knitr::kable()
 ```
 
-```{r verification-extremes-fish}
+```{r}
 #| label: fig-extremes-fish
 #| echo: true
 #| layout-ncol: 2
@@ -267,7 +292,7 @@ qqline(data.biotic$phyto_richness, col = "red", lwd = 2)
 ```
 
 ### Analyse de la variable explicative quantitative - valeurs aberrantes et disitrbution des valeurs
-```{r valeurs-extremes-nutriments}
+```{r}
 #| label: tbl-extremes-nutriments
 #| echo: false
 #| asis: false
@@ -293,18 +318,12 @@ Nous avons examiné la distribution des huit variables explicatives quantitative
 
 En examinant l'évolution temporelle de ces valeurs selon les différents secteurs géographiques (`area`), nous constatons que certaines correspondent aux premières mesures disponibles, tandis que d'autres se répètent au cours du temps (@fig-extremes-nutriments). Ces observations ne semblent donc pas nécessairement aberrantes. En l'absence d'erreurs de mesure identifiées, nous avons décidé de les conserver pour la suite des analyses.
 
-```{r distribution-nutriments}
+```{r}
 #| label: fig-distribution-nutriments
 #| echo: true
 #| fig-width: 12
 #| fig-height: 4
 #| results: asis
-
-variables.nutriments <- c(
-  "P_municipal", "P_industrial", "P_other",
-  "N_municipal", "N_industrial", "N_other",
-  "BOD_municipal", "BOD_industrial"
-)
 
 for (variable in variables.nutriments) {
 
@@ -344,7 +363,7 @@ for (variable in variables.nutriments) {
 par(mfrow = c(1, 1))
 ```
 
-```{r details-extremes-nutriments}
+```{r}
 #| label: fig-extremes-nutriments
 #| fig-cap: "Évolution temporelle des apports en nutriments et valeurs extrêmes"
 #| fig-width: 12
@@ -420,8 +439,14 @@ La @fig-relations-nutriments-area suggère que les relations entre les apports e
 #| fig-cap: "Relations entre les réponses biologiques et les apports en nutriments selon le secteur"
 #| fig-width: 15
 #| fig-height: 9
+data.analyse.relations <- data.biotic %>%
+  left_join(
+    data.nutriment,
+    by = c("year", "area"),
+    relationship = "many-to-one"
+  )
 
-data.analyse %>%
+data.analyse.relations %>%
   pivot_longer(c(phyto_richness, fish_catch),
                names_to = "indicateur", values_to = "reponse") %>%
   pivot_longer(all_of(variables.nutriments),
@@ -440,6 +465,8 @@ data.analyse %>%
     color = "Secteur"
   ) +
   theme_minimal()
+
+rm(data.analyse.relations)
 ```
 #### Évolution temporelle des réponses biologiques
 Enfin, nous étudions l'évolution temporelle de la richesse phytoplanctonique et des captures de poissons (@fig-reponses-temporelles) afin d'identifier d'éventuelles tendances pouvant influencer les relations entre les apports en nutriments et les réponses biologiques.
@@ -487,9 +514,7 @@ Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs man
 miss_var_summary(data.nutriment) %>%
   knitr::kable(caption = "Nutriments")
 
-miss_var_summary(
-  data.biotic %>% select(-prim_prod)
-) %>%
+miss_var_summary(data.biotic) %>%
   knitr::kable(caption = "Variables biotiques")
 ```
 
@@ -506,7 +531,7 @@ Les proportions de valeurs manquantes sont également représentées graphiqueme
 #| fig-height: 5
 
 gg_miss_var(
-  data.biotic %>% select(-prim_prod),
+  data.biotic,
   show_pct = TRUE
 ) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
@@ -722,8 +747,7 @@ data.nutriment %>%
 ##### Imputation `missMDA`
 L'analyse de la stabilité des imputations multiples (MIPCA) montre une importante variabilité et une forte incertitude quant à la position des individus et des variables imputées dans le plan factoriel (ellipses de confiance très étalées dans @fig-imputation-complete-1 et dispersion marquée dans @fig-imputation-complete-2). La qualité de l'imputation ne semblant pas satisfaisante, nous choisissons alors de ne pas conserver les données imputées et de poursuivre l'analyse uniquement sur les observations complètes (complete cases). *ICI.A.VOIR ⚠️*
 
-```{r}
-#| label: imputation-nutriments
+```{r imputation-nutriments}
 #| message: false
 
 # Sélection des variables à imputer
@@ -825,7 +849,7 @@ data.nutriment.clean <- data.nutriment %>%
   stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
   data.analyse <- data.biotic %>%
     left_join(
-      data.nutriment.noncor,
+      data.nutriment, #data.nutriment.noncor,
       by = c("year", "area"),
       relationship = "many-to-one"
     )
@@ -859,4 +883,3 @@ data.analyse.fish <- data.analyse %>%
 
 
 # Conclusion
-
