@@ -17,6 +17,58 @@ editor:
     canonical: false
     wrap: 72
 ---
+```{r}
+library(readxl)
+library(tidyverse)
+```
 
-## Quarto
+
+```{r}
+#| echo = false
+data.nutriment <- read_excel("data_lake.xlsx", 
+                             sheet = "nutriments",
+                             range = "A3:J98", 
+                             col_names = FALSE)
+data.biotic    <- read_excel("data_lake.xlsx", sheet = "biotic")
+
+names(data.nutriment) <- c("year", "area",
+                           "P_municipal", "P_industrial", "P_other",
+                           "N_municipal", "N_industrial", "N_other",
+                           "BOD_municipal", "BOD_industrial")
+names(data.biotic)[1:6] <- c("year", "sub_basin", "area",
+                             "phyto_richness", "prim_prod", "fish_catch")
+
+```
+
+# Introduction
+
+# Analyse de données
+## Data first review
+
+### MODIFY BASE
+
+### EXPLORATION
+
+### INPUT MISSING DATA?
+
+### FINAL DATASET FOR ANALYSIS 😁😁😁😁 UTILISER CELUI-CI!
+```{r}
+data.nutriment.clean <- data.nutriment |> (tidyr::drop_na)()
+data.biotic.clean    <- data.biotic    |> (tidyr::drop_na)()
+```
+
+## ANALYSE multivarie
+
+### PCA
+
+
+### RDA
+
+
+## GLM / GLMM etc..
+
+# Discussion
+
+
+# Conclusion
 
