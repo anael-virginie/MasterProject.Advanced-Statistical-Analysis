@@ -1,0 +1,22 @@
+---
+title: "Étude d’impact d’un projet routier sur des Amphibiens"
+author: "GOURBILLON Candys, DELANNOY Mathéo, LENQUETTE Anael, LAPORTE Paul"
+lang: fr
+number-sections: true
+number-depth: 6
+keep-md: false
+keep-ipynb: false
+format:
+  html:
+    embed-resources: true
+html-math-method: katex
+toc: true
+toc-location: left
+editor:
+  markdown:
+    canonical: false
+    wrap: 72
+---
+
+## Quarto
+
