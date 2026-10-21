@@ -1068,6 +1068,425 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 
 ## GLM / GLMM etc..
 
+# PArtie Phytoplankton
+
+## Colinéarités {#sec-correlation}
+
+Avant la modélisation, nous examinons les relations entre les huit variables explicatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problèmes de multicolinéarité : lorsque deux variables explicatives évoluent ensemble, le modèle ne peut plus attribuer à chacune sa part d'effet et les coefficients deviennent instables.]
+
+```{r}
+#| label: fig-correlation-nutriments
+#| fig-cap: "Corrélations de Pearson entre les apports en nutriments (les croix indiquent les corrélations non significatives au seuil de 5 %)"
+#| fig-width: 9
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+resultat.correlation = Hmisc::rcorr(
+  as.matrix(data.nutriment %>% select(all_of(variables.nutriments))),
+  type  =  "pearson"
+)
+
+# Paires fortement corrélées (|r| > =  seuil et p < 0,05)
+seuil.corr = 0.6
+r.mat = resultat.correlation$r
+p.mat = resultat.correlation$P
+r.mat[lower.tri(r.mat, diag  =  TRUE)] = NA
+paires.fortes = which(abs(r.mat) >= seuil.corr & p.mat < 0.05, arr.ind  =  TRUE)
+texte.corr = paste0(
+  rownames(r.mat)[paires.fortes[, 1]], " et ",
+  colnames(r.mat)[paires.fortes[, 2]],
+  " (r  =  ", round(r.mat[paires.fortes], 2), ")",
+  collapse  =  ", "
+)
+
+corrplot::corrplot(
+  resultat.correlation$r,
+  method  =  "square", type  =  "upper", diag  =  FALSE,
+  addCoef.col  =  "black", tl.col  =  "black",
+  number.cex  =  0.7, tl.cex  =  0.8,
+  p.mat  =  resultat.correlation$P, sig.level  =  0.05,
+  insig  =  "pch", pch  =  4,
+  pch.col  =  grDevices::adjustcolor("red", alpha.f  =  0.3)
+)
+```
+
+Nous retenons les corrélations de Pearson avec $|r| \geq 0{,}6$ et $p < 0{,}05$ (@fig-correlation-nutriments). Elles concernent : `r texte.corr`. Les apports d'azote et de phosphore sont donc liés entre eux (notamment `P_other` et `N_other`), ce qui est attendu puisque ces rejets proviennent des mêmes sources. Comme avec une centaine d'observations presque toute corrélation modérée est « significative », c'est la valeur de $r$ qui compte ici, pas la p-value.
+
+La matrice de corrélation compare les variables deux à deux. Pour savoir si une variable est expliquée par **l'ensemble** des autres, y compris le temps, nous calculons le facteur d'inflation de la variance (VIF) dans un modèle contenant les huit apports et l'année (< 5 : faible ; 5 à 10 : modérée ; > 10 : forte).
+
+```{r}
+#| label: tbl-vif-sources
+#| tbl-cap: "VIF du modèle avec les huit apports et l'année (à gauche) et sans l'azote (à droite)"
+#| echo: false
+#| message: false
+#| warning: false
+
+standardiser = function(d, vars) {
+  d %>% mutate(across(all_of(vars), ~ as.numeric(scale(.x))))
+}
+vif.table = function(vars) {
+  d = data.analyse.phyto %>% drop_na(all_of(vars)) %>% standardiser(c(vars, "year"))
+  m = glmmTMB(reformulate(c(vars, "year", "(1 | sub_basin)"), "phyto_richness"),
+               data  =  d, family  =  nbinom2)
+  v = as.data.frame(check_collinearity(m))[, c("Term", "VIF")]
+  v$VIF = round(v$VIF, 1)
+  list(vif  =  v, n  =  nrow(d), aic  =  AIC(m))
+}
+
+vars.sans.N = setdiff(variables.nutriments, grep("^N_", variables.nutriments, value  =  TRUE))
+vif.8 = vif.table(variables.nutriments)
+vif.5 = vif.table(vars.sans.N)
+
+kable(
+  list(vif.8$vif, vif.5$vif),
+  caption  =  NULL
+)
+```
+
+Avec les huit apports, plusieurs VIF dépassent 10 (jusqu'à `r max(vif.8$vif$VIF)`) : les coefficients individuels ne sont pas interprétables. Nous écartons `N_municipal`, `N_industrial` et `N_other` : ils sont fortement corrélés au phosphore, et surtout ils comptent `r sum(is.na(data.nutriment$N_other))` valeurs manquantes sur `r nrow(data.nutriment)` (soit `r round(100 * mean(is.na(data.nutriment$N_other)), 1)` %), ce qui réduit le nombre d'observations utilisables. Écarter l'azote ne signifie pas qu'il est sans importance écologique : nous privilégions simplement le phosphore, nutriment limitant en milieu lacustre boréal.
+
+Sans l'azote, les VIF restent modérés (jusqu'à `r max(vif.5$vif$VIF)`), car les sources de phosphore et de DBO varient ensemble, et avec l'année. Nous les regroupons donc en deux indicateurs.
+
+## GLM / GLMM de la richesse phytoplanctonique
+
+### Regroupement des apports et standardisation
+
+Nous additionnons les sources pour obtenir un apport total de phosphore et de DBO, puis nous les **centrons-réduisons** : $z  =  (x - \bar{x}) / s$, où $s$ est l'écart-type. Chaque variable s'exprime ainsi en « écarts-types » (zéro  =  valeur moyenne), ce qui les rend comparables et améliore la convergence des modèles.
+
+- `zP` : phosphore total, $P_{municipal} + P_{industrial} + P_{other}$, centré-réduit.
+- `zB` : DBO totale, $BOD_{municipal} + BOD_{industrial}$, centrée-réduite.
+- `yr` : année, centrée-réduite.
+
+```{r}
+#| label: preparation-glmm-phyto
+#| echo: false
+#| message: false
+#| warning: false
+
+data.glmm.phyto = data.analyse.phyto %>%
+  mutate(
+    P_total    =  P_municipal + P_industrial + P_other,
+    BOD_total  =  BOD_municipal + BOD_industrial
+  ) %>%
+  drop_na(P_total, BOD_total) %>%
+  mutate(
+    sub_basin  =  droplevels(sub_basin),
+    area       =  droplevels(area),
+    zP  =  as.numeric(scale(P_total)),
+    zB  =  as.numeric(scale(BOD_total)),
+    yr  =  as.numeric(scale(year))
+  )
+```
+
+Le jeu de modélisation contient `r nrow(data.glmm.phyto)` observations sur `r nrow(data.analyse.phyto)`.
+
+### Corrélations entre les variables regroupées
+
+Nous regardons maintenant les corrélations entre les variables regroupées (`zP`, `zB`, `zN`) et l'année (`yr`), pour l'ensemble du lac puis dans chaque secteur. L'azote n'est pas dans les modèles : on le montre ici pour justifier ce choix. Il compte des valeurs manquantes, donc la corrélation est calculée sur les paires complètes.
+
+```{r}
+#| label: fig-correlation-z
+#| fig-cap: "Corrélations de Pearson entre zP, zB, zN et yr (croix : corrélation non significative à 5 %)"
+#| layout-ncol: 3
+#| fig-width: 5
+#| fig-height: 5
+#| echo: false
+#| message: false
+#| warning: false
+
+data.corr.z = data.glmm.phyto %>%
+  mutate(N_total  =  N_municipal + N_industrial + N_other)
+
+corr.z = function(d, titre) {
+  d = d %>%
+    transmute(zP  =  as.numeric(scale(P_total)),
+              zB  =  as.numeric(scale(BOD_total)),
+              zN  =  as.numeric(scale(N_total)),
+              yr  =  as.numeric(scale(year)))
+  rc = Hmisc::rcorr(as.matrix(d), type  =  "pearson")
+  corrplot::corrplot(
+    rc$r, method  =  "square", type  =  "upper", diag  =  FALSE,
+    addCoef.col  =  "black", tl.col  =  "black", number.cex  =  1.1,
+    p.mat  =  rc$P, sig.level  =  0.05, insig  =  "pch", pch  =  4,
+    pch.col  =  grDevices::adjustcolor("red", alpha.f  =  0.3),
+    title  =  paste0(titre, " (n  =  ", sum(complete.cases(d)), " avec zN)"),
+    mar  =  c(0, 0, 2, 0)
+  )
+  invisible(rc)
+}
+
+corr.z(data.corr.z, "Tous secteurs")
+
+```
+
+Trois points ressortent (@fig-correlation-z) :
+
+- **La DBO suit le temps** : `zB` et `yr` sont fortement corrélées négativement dans tout le lac et dans chaque secteur ($r \approx -0{,}8$). C'est la colinéarité la plus gênante pour la suite.
+- **Le phosphore est lié à la DBO et à l'année**, surtout dans chaque secteur ($|r|$ entre 0,7 et 0,8) : `zP` baisse avec le temps et avec la DBO.
+- **L'azote est lié au phosphore** (`zN` et `zP` : $r  =  0{,}85$ pour tout le lac), mais pas à l'année (`zN` et `yr` : $r \approx 0$ pour tout le lac). Il apporte donc peu d'information en plus de `zP`, et n'explique pas la tendance temporelle : cela conforte son retrait des modèles.
+
+### Choix de la loi
+
+La richesse est un comptage : nous comparons une loi de Poisson et une binomiale négative (`nbinom2`), qui tolère la surdispersion. La dispersion est le rapport entre la somme des carrés des résidus de Pearson et les degrés de liberté (≈ 1 si la loi convient).
+
+```{r}
+#| label: tbl-choix-loi
+#| tbl-cap: "Comparaison des lois sur le modèle commun"
+#| echo: false
+#| message: false
+#| warning: false
+
+dispersion = function(m) sum(residuals(m, type  =  "pearson")^2) / df.residual(m)
+
+modele.poisson = glmmTMB(phyto_richness ~ zP + zB + yr + (1 | sub_basin),
+                          data  =  data.glmm.phyto, family  =  poisson)
+modele.commun  = glmmTMB(phyto_richness ~ zP + zB + yr + (1 | sub_basin),
+                          data  =  data.glmm.phyto, family  =  nbinom2)
+
+tibble(
+  Loi  =  c("Poisson", "Binomiale négative"),
+  AIC  =  c(AIC(modele.poisson), AIC(modele.commun)),
+  Dispersion  =  c(dispersion(modele.poisson), dispersion(modele.commun))
+) %>% kable(digits  =  2)
+```
+
+Les deux lois donnent des AIC voisins et la dispersion de Poisson est proche de 1 : il n'y a pas de surdispersion forte. Nous retenons la binomiale négative, plus prudente, comme dans l'article de Tolonen et al. (2014).
+
+### Modèle de base : tous secteurs ensemble
+
+Premier modèle : on ne distingue pas les secteurs et on tient compte du sous-bassin par un effet aléatoire `(1 | sub_basin)`. Il signifie que chaque sous-bassin a sa propre richesse moyenne de départ, tirée dans une loi normale commune, sans que ses mesures successives soient considérées comme indépendantes.
+
+$$\text{richesse}_{ij} \sim \text{NB}(\mu_{ij}), \quad \log \mu_{ij}  =  \beta_0 + \beta_1\, zP_{ij} + \beta_2\, zB_{ij} + \beta_3\, yr_{ij} + b_j, \quad b_j \sim \mathcal{N}(0, \sigma^2_{sb})$$
+
+```{r}
+#| label: tbl-modele-commun
+#| tbl-cap: "Modèle commun aux deux secteurs : effet de chaque variable (en % de variation de la richesse pour +1 écart-type)"
+#| echo: false
+#| message: false
+#| warning: false
+
+fmt.p = function(p) sapply(p, function(x) format.pval(x, digits  =  3, eps  =  0.001))
+
+tab.effets = function(m, nom  =  NULL) {
+  s = summary(m)$coefficients$cond
+  s = s[rownames(s) !=  "(Intercept)", , drop  =  FALSE]
+  out = data.frame(
+    Terme  =  rownames(s),
+    `Effet (%)`  =  round(100 * (exp(s[, 1]) - 1), 1),
+    p  =  fmt.p(s[, 4]),
+    check.names  =  FALSE
+  )
+  if (!is.null(nom)) out = cbind(Modèle  =  nom, out)
+  rownames(out) = NULL
+  out
+}
+kable(tab.effets(modele.commun))
+```
+
+```{r}
+#| label: variance-aleatoire
+#| echo: false
+#| message: false
+#| warning: false
+
+sd.sb = attr(VarCorr(modele.commun)$cond$sub_basin, "stddev")
+```
+
+Dans ce modèle, l'année domine (+`r round(100 * (exp(fixef(modele.commun)$cond["yr"]) - 1), 0)` % par écart-type) et la DBO a un effet positif. Mais l'écart-type de l'effet aléatoire est pratiquement nul (`r format(sd.sb, digits  =  2)`) : une fois les variables prises en compte, les sous-bassins ne diffèrent pas entre eux. Ce modèle commun suppose aussi que Nord et Centre réagissent de la même manière, ce que nous testons maintenant.
+
+### Pourquoi séparer le Nord et le Centre ?
+
+Nous comparons trois modèles : le modèle commun, un modèle avec un décalage de niveau entre secteurs (`area`), et un modèle où chaque variable a un effet propre à chaque secteur (`area * (...)`).
+
+```{r}
+#| label: tbl-test-secteur
+#| tbl-cap: "Test de l'effet du secteur (tests du rapport de vraisemblance)"
+#| echo: false
+#| message: false
+#| warning: false
+
+modele.area  = update(modele.commun, . ~ . + area)
+modele.inter = update(modele.commun, . ~ area * (zP + zB + yr) + (1 | sub_basin))
+
+comp1 = anova(modele.commun, modele.area)
+comp2 = anova(modele.area, modele.inter)
+
+tibble(
+  Comparaison  =  c("Commun → + niveau par secteur", "+ niveau → effets propres à chaque secteur"),
+  ΔAIC  =  c(diff(AIC(modele.commun, modele.area)$AIC), diff(AIC(modele.area, modele.inter)$AIC)),
+  p  =  fmt.p(c(comp1$`Pr(>Chisq)`[2], comp2$`Pr(>Chisq)`[2]))
+) %>% kable(digits  =  1)
+```
+
+Le décalage de niveau seul n'est pas net, mais laisser les effets varier selon le secteur améliore significativement le modèle (p  =  `r fmt.p(comp2$"Pr(>Chisq)"[2])`). Les deux secteurs ne réagissent donc pas de la même façon : nous les modélisons séparément.
+
+**Un effet aléatoire du sous-bassin est-il utile dans chaque secteur ?** Chaque secteur ne contient que trois sous-bassins, ce qui est peu pour estimer une variance. Nous testons donc directement s'il apporte quelque chose, en comparant un GLM simple à un GLMM.
+
+```{r}
+#| label: tbl-test-sousbassin
+#| tbl-cap: "Test de l'effet aléatoire du sous-bassin dans chaque secteur"
+#| echo: false
+#| message: false
+#| warning: false
+
+# Standardisation propre à chaque secteur
+data.secteur = data.glmm.phyto %>%
+  group_by(area) %>%
+  mutate(zP  =  as.numeric(scale(P_total)),
+         zB  =  as.numeric(scale(BOD_total)),
+         yr  =  as.numeric(scale(year))) %>%
+  ungroup()
+secteurs = levels(data.secteur$area)
+
+test.sb = lapply(secteurs, function(a) {
+  d = filter(data.secteur, area == a)
+  glm = glmmTMB(phyto_richness ~ zP + zB + yr, data  =  d, family  =  nbinom2)
+  mix = suppressWarnings(
+    glmmTMB(phyto_richness ~ zP + zB + yr + (1 | sub_basin), data  =  d, family  =  nbinom2))
+  data.frame(Secteur  =  a, n  =  nrow(d), `Sous-bassins`  =  nlevels(droplevels(d$sub_basin)),
+             p  =  fmt.p(anova(glm, mix)$`Pr(>Chisq)`[2]),
+             check.names  =  FALSE)
+}) %>% bind_rows()
+kable(test.sb)
+```
+
+Dans les deux secteurs, ajouter l'effet aléatoire n'améliore pas le modèle. Nous utilisons donc des **GLM binomiaux négatifs sans effet aléatoire**, un par secteur, avec les variables standardisées au sein du secteur.
+
+### Colinéarité dans chaque secteur
+
+```{r}
+#| label: tbl-vif-secteur
+#| tbl-cap: "VIF des variables explicatives dans chaque secteur"
+#| echo: false
+#| message: false
+#| warning: false
+
+modeles.secteur = lapply(secteurs, function(a) {
+  glmmTMB(phyto_richness ~ zP + zB + yr,
+          data  =  filter(data.secteur, area == a), family  =  nbinom2)
+})
+names(modeles.secteur) = secteurs
+
+vif.secteur = lapply(secteurs, function(a) {
+  v = as.data.frame(check_collinearity(modeles.secteur[[a]]))[, c("Term", "VIF")]
+  v$VIF = round(v$VIF, 1)
+  names(v)[2] = a
+  v
+}) %>% reduce(left_join, by  =  "Term")
+
+cor.secteur = sapply(secteurs, function(a) {
+  with(filter(data.secteur, area == a), cor(zB, yr))
+})
+kable(vif.secteur)
+```
+
+Les VIF restent inférieurs à 10, mais la DBO est très liée à l'année : la corrélation entre `zB` et `yr` est de `r paste0(round(cor.secteur, 2), " (", secteurs, ")", collapse  =  " et ")`. Les rejets de DBO ont fortement baissé au fil du temps, alors que la richesse a augmenté. Le VIF de la DBO est le plus élevé (`r max(vif.secteur[vif.secteur$Term  =  =  "zB", -1])`) : c'est le point faible du modèle.
+
+### Résultats par secteur et rôle de l'année
+
+Pour montrer ce que fait l'année, nous ajustons trois modèles dans chaque secteur : le modèle complet, le modèle **sans l'année**, et le modèle **sans la DBO**.
+
+```{r}
+#| label: tbl-modeles-secteur
+#| tbl-cap: "Effets (en % de variation de la richesse pour +1 écart-type) selon la formule du modèle"
+#| echo: false
+#| message: false
+#| warning: false
+
+formules = list(
+  "Complet (P + DBO + année)"  =  . ~ .,
+  "Sans l'année"               =  . ~ . - yr,
+  "Sans la DBO"                =  . ~ . - zB
+)
+
+resultats = lapply(secteurs, function(a) {
+  d = filter(data.secteur, area ==  a)
+  mods = lapply(formules, function(f) update(modeles.secteur[[a]], f))
+  list(
+    tab  =  bind_rows(Map(function(m, nom) tab.effets(m, nom), mods, names(mods))) %>%
+      mutate(Secteur  =  a, .before  =  1),
+    aic  =  tibble(Secteur  =  a, Modèle  =  names(mods), AIC  =  sapply(mods, AIC))
+  )
+})
+tab.resultats = bind_rows(lapply(resultats, `[[`, "tab"))
+tab.aic = bind_rows(lapply(resultats, `[[`, "aic"))
+kable(tab.resultats)
+```
+
+```{r}
+#| label: tbl-aic-secteur
+#| tbl-cap: "AIC des trois modèles par secteur"
+#| echo: false
+
+tab.aic %>% pivot_wider(names_from  =  Secteur, values_from  =  AIC) %>% kable(digits  =  1)
+```
+
+Ce tableau montre pourquoi l'année est conservée :
+
+- **Sans l'année**, l'AIC augmente fortement dans les deux secteurs : le temps explique l'essentiel de la hausse de la richesse.
+- Sans elle, les nutriments prennent sa place. Au Nord, le phosphore devient « significatif » avec un effet négatif, et au Centre l'effet de la DBO s'inverse. Ces effets ne viennent pas des nutriments : ils reflètent la tendance temporelle, car les apports ont baissé pendant que la richesse augmentait.
+- **Sans la DBO**, l'AIC ne change pratiquement pas au Nord (la DBO n'y apporte rien), mais il augmente nettement au Centre, où la DBO garde un effet positif une fois l'année prise en compte. Cet effet reste fragile, à cause de sa corrélation avec l'année.
+
+Nous gardons donc l'année comme covariable dans tous les modèles : l'effet de la DBO ou du phosphore ne peut être lu qu'« à année donnée ».
+
+### Validation des modèles
+
+```{r}
+#| label: fig-validation
+#| fig-cap: "Validation des GLM par secteur"
+#| fig-subcap:
+#|   - "Résidus de Pearson contre valeurs ajustées"
+#|   - "Graphique Quantile-Quantile des résidus de Pearson"
+#| layout-ncol: 2
+#| fig-width: 6
+#| fig-height: 5
+#| echo: false
+#| message: false
+#| warning: false
+
+res.secteur = bind_rows(lapply(secteurs, function(a) {
+  m = modeles.secteur[[a]]
+  data.frame(Secteur  =  a, year  =  filter(data.secteur, area == a)$year,
+             ajuste  =  fitted(m), residu  =  residuals(m, type  =  "pearson"))
+}))
+couleurs.secteur = c("Central Paijanne"  =  col.central, "Northen Paijanne"  =  col.nothen)
+
+ggplot(res.secteur, aes(ajuste, residu, colour  =  Secteur)) +
+  geom_hline(yintercept  =  0, linetype  =  "dashed") +
+  geom_point(alpha  =  0.7) +
+  scale_colour_manual(values  =  couleurs.secteur) +
+  labs(x  =  "Valeurs ajustées", y  =  "Résidus de Pearson")
+
+ggplot(res.secteur, aes(sample  =  residu, colour  =  Secteur)) +
+  stat_qq() + stat_qq_line() +
+  scale_colour_manual(values  =  couleurs.secteur) +
+  labs(x  =  "Quantiles théoriques", y  =  "Quantiles observés")
+```
+
+```{r}
+#| label: tbl-validation
+#| tbl-cap: "Diagnostics de chaque GLM"
+#| echo: false
+#| message: false
+#| warning: false
+
+tibble(
+  Secteur  =  secteurs,
+  Dispersion  =  sapply(modeles.secteur, dispersion),
+  `Autocorrélation des résidus (lag 1, moyenne par année)`  =  sapply(secteurs, function(a) {
+    m = res.secteur %>% filter(Secteur == a) %>%
+      group_by(year) %>% summarise(r  =  mean(residu), .groups  =  "drop") %>% arrange(year)
+    acf(m$r, lag.max  =  1, plot  =  FALSE)$acf[2]
+  })
+) %>% kable(digits  =  2)
+```
+
+Les résidus ne montrent pas de structure marquée, la dispersion est proche de 1. L'autocorrélation d'une année à l'autre est faible au Centre et un peu plus marquée au Nord : à surveiller (à confirmer avec `DHARMa::simulateResiduals()` et `DHARMa::testTemporalAutocorrelation()`).^[Les résidus de Pearson sont les écarts observés–attendus divisés par l'écart-type attendu : s'ils sont bien spécifiés, ils sont centrés sur 0 et sans tendance.]
+
+
+
 
 # Discussion
 
