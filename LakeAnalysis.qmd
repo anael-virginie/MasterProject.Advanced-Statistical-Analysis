@@ -30,6 +30,7 @@ library(DHARMa)
 library(performance)
 library(vegan)
 library(missMDA)
+library(Hmisc)
 knitr::opts_chunk$set(fig.align = "center", fig.width = 9, fig.height = 5)
 theme_set(theme_minimal(base_size = 12))
 
@@ -576,8 +577,54 @@ data.spatial %>%
   theme_minimal()
 ```
 
-## Valeurs manquantes
 
+## Vérification d'éventuelle colinéarité entre les variables réponses {#sec-correlation}
+Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problémes de multicolinéarité.]
+
+### VERSION 1:
+Pour cela nous examinons le coefficients de corrélation de Pearson, retenons un seuil de |r|>0,7 pour identifier les corréaltions fortes susceptibles, et |p|>0,05. Cet analyse met en évidence plusieurs associations significatives entre les apports en azote et en phosphore, notamment `r paste(apply(expand.grid(N = grep("^N_", variables.nutriments, value = TRUE), P = grep("^P_", variables.nutriments, value = TRUE)), 1, function(x) { r <- resultat.correlation$r[x[1], x[2]]; p <- resultat.correlation$P[x[1], x[2]]; if (!is.na(p) && p < 0.05 && abs(r) >= 0.7) paste0(x[1], " et ", x[2], " (r = ", round(r, 2), " ; p = ", format.pval(p, digits = 2, eps = 0.001), ")") else NA_character_ }) |> na.omit(), collapse = ", ")` (@fig-correlation-nutriments).
+Afin de limiter la redondance entre les variables explicatives, nous choisissons d'écarter N_other et de conserver P_other, cette dernière ne présentant aucune valeur manquante, contre 17,7 % pour N_other.
+*A.VOIR.ICI ⚠️ SI ON MAINTIENT >=0.7 ou autre!!! JE NE SUIS PAS TROP SUR ET CA CHANGE LES RESULTATS...*
+
+### VERSION 2:
+Pour cela nous examinons le coefficients de corrélation de Pearson, retenons un seuil de |r|>0,6 pour identifier les corréaltions fortes susceptibles, et |p|>0,05. Cet analyse met en évidence plusieurs associations significatives entre les apports en azote et en phosphore, notamment `r paste(apply(expand.grid(N = grep("^N_", variables.nutriments, value = TRUE), P = grep("^P_", variables.nutriments, value = TRUE)), 1, function(x) { r <- resultat.correlation$r[x[1], x[2]]; p <- resultat.correlation$P[x[1], x[2]]; if (!is.na(p) && p < 0.05 && abs(r) >= 0.6) paste0(x[1], " et ", x[2], " (r = ", round(r, 2), " ; p = ", format.pval(p, digits = 2, eps = 0.001), ")") else NA_character_ }) |> na.omit(), collapse = ", ")` (@fig-correlation-nutriments).
+Compte tenu de ces corrélations et de la proportion plus importante de valeurs manquantes dans les variables relatives à l'azote (17,7 % chacune), nous avons choisi d'écarter `N_municipal`, `N_industrial` et `N_other` des modèles principaux afin de privilégier les variables relatives au phosphore et de limiter la perte d'observations. Cette décision ne signifie toutefois pas que l'azote est sans importance écologique.
+
+```{r}
+#| label: fig-correlation-nutriments
+#| fig-cap: "Corrélations de Pearson entre les apports en nutriments et leur significativité statistique"
+#| fig-width: 9
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+# Corrélations et p-values
+resultat.correlation <- Hmisc::rcorr(
+  as.matrix(data.nutriment %>%
+              select(all_of(variables.nutriments))),
+  type = "pearson"
+)
+
+# Représentation graphique
+corrplot::corrplot(
+  resultat.correlation$r,
+  method = "square",
+  type = "upper",
+  diag = FALSE,
+  addCoef.col = "black",
+  tl.col = "black",
+  number.cex = 0.7,
+  tl.cex = 0.8,
+  p.mat = 1 - abs(resultat.correlation$r),
+  sig.level = 0.3,
+  insig = "pch",
+  pch = 4,
+  pch.col = grDevices::adjustcolor("red", alpha.f = 0.3)
+)
+```
+
+## Valeurs manquantes
 L'exploration initiale des jeux de données a révélé la présence de valeurs manquantes (@sec-stats-dscrip-general). Avant de procéder aux analyses statistiques, nous examinons leur fréquence ainsi que leur répartition spatiale et temporelle.
 
 Une suppression systématique des observations incomplètes pourrait entraîner une perte importante d'informations. Nous chercherons donc à conserver le maximum d'observations disponibles, en adaptant le traitement des valeurs manquantes aux variables utilisées dans chaque analyse.
