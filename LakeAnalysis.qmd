@@ -904,14 +904,10 @@ resultat.imputation <- imputePCA(
 #   ylab = "Error cuadrático medio de predicción"
 # )
 
-# Conservation des variables géographiques et temporelles
+# SAVE IMPUTATION
 data.nutriment.impute <- data.nutriment
-
 data.nutriment.impute[variables.nutriments] <-
   resultat.imputation$completeObs
-
-# Vérification
-#colSums(is.na(data.nutriment.impute[variables.nutriments]))
 ```
 
 ```{r}
