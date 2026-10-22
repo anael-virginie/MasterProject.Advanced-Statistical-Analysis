@@ -971,11 +971,9 @@ missMDA::Overimpute(
 ## Rapprochement des jeux de données
  *ICI.A.VOIR ⚠️*
 
-Les données des deux jeux sont associées à partir de l'année (`year`) et du zone géographique (`area`) correspondant au jeux données `data.analyse`.^[Plusieurs sous-bassins pouvant apparten à un même secteur, une même valeur d'apport en nutriments peut donc être attribuée à plusieurs observations biologiques.]
+Afin d'évaluer l'influence du traitement des valeurs manquantes sur nos résultats, nous constituons deux versions des données : une première conservant les valeurs originales, sans imputation, et une seconde utilisant les valeurs imputées par ACP régularisée (`data.analyse.impute`).
 
-Afin de conserver le maximum d'informations disponibles pour nos modéles, nous constituons deux jeux de données distincts, correspondant à nos deux variables réponses : la richesse phytoplanctonique (`phyto_richness`, `data.analyse.phyto`) et les captures de poissons (`fish_catch`, `data.analyse.fish`). Nous supprimons uniquement les observations pour lesquelles la variable réponse étudiée est manquante.
-
-Enfin, afin de limiter les problèmes de multicolinéarité lors de la modélisation, les variables explicatives présentant de fortes corrélations entre elles ont été identifiées et certaines ont été écartées de la sélection des modèles comme expliqués dans @sec-correlation.
+Pour chacune de ces versions, nous créons deux jeux de données distincts correspondant à nos variables réponses : la richesse phytoplanctonique (`data.analyse.phyto` et `data.analyse.phyto.impute`) et les captures de poissons (`data.analyse.fish` et `data.analyse.fish.impute`). Dans les deux cas, seules les observations disponibles on était maintenu.
 
 ```{r}
 #| label: preparation-donnees-modeles
