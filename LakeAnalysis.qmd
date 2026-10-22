@@ -858,8 +858,115 @@ corrplot::corrplot(
   tl.cex = 0.8
 )
 ```
-## Imputation
+## Imputation avec `missMDA`
+Pour affranchir notre jeux de donn'ees incomplet pour les variabels retenus `N_municipal` et `BOD_municipal` nous avons d'ecide de realiser un analyse d'imputations.
 
+L'analyse de stabilité des imputations multiples suggère une variabilité et une incertitude relativement limitées dans la représentation des individus et des variables dans le plan factoriel, avec des ellipses de confiance peu étendues (@fig-imputation-complete-1) et une dispersion relativement faible (@fig-imputation-complete-2). 
+
+Malgré ces résultats favorables, nous choisissons, dans un premier temps, de poursuivre les analyses à partir des données originales, sans utiliser les valeurs imputées. Cette approche permet de limiter les hypothèses supplémentaires liées à l'imputation et de privilégier les observations effectivement mesurées, tout en tenant compte de la réduction du nombre d'observations disponibles. *VOIR ICI ⚠️⚠️⚠️⚠️* 
+
+```{r imputation-nutriments}
+#| echo: false
+#| message: false
+#| warning: false
+#| output: false
+
+# Sélection des variables à imputer
+X.nutriments <- data.nutriment %>%
+  select(all_of(variables.nutriments))
+
+# Estimation du nombre de composantes par validation croisée
+set.seed(123)
+
+ncp.estime <- estim_ncpPCA(
+  X.nutriments,
+  ncp.min = 1,
+  ncp.max = 5,
+  method.cv = "Kfold",
+  nbsim = 20
+)
+
+ncp.estime$ncp
+# Imputation par ACP régularisée
+resultat.imputation <- imputePCA(
+  X.nutriments,
+  ncp = ncp.estime$ncp,
+  method = "Regularized",
+  scale = TRUE
+)
+
+# ncp.estime$criterion
+# plot(
+#   1:5,
+#   ncp.estime$criterion,
+#   type = "b",
+#   xlab = "Número de componentes PCA",
+#   ylab = "Error cuadrático medio de predicción"
+# )
+
+# Conservation des variables géographiques et temporelles
+data.nutriment.impute <- data.nutriment
+
+data.nutriment.impute[variables.nutriments] <-
+  resultat.imputation$completeObs
+
+# Vérification
+#colSums(is.na(data.nutriment.impute[variables.nutriments]))
+```
+
+```{r}
+#| label: fig-imputation-complete
+#| fig-cap: "Analyse des imputations multiples : incertitude et stabilité"
+#| fig-subcap: 
+#|   - "Incertitude des imputations multiples dans le plan factoriel"
+#|   - "Stabilité de la représentation des nutriments après imputation multiple"
+#| fig-width: 8
+#| fig-height: 7
+#| layout-ncol: 1
+#| results: 'hide'
+#| echo: false
+#| message: false
+#| warning: false
+#| output: true
+
+# 1. Charger l'objet principal MIPCA (sauvegardé précédemment)
+# set.seed(123)
+# resultat.MIPCA <- missMDA::MIPCA(X.nutriments, ncp = ncp.estime$ncp, nboot = 1000, method.mi = "Bayes")
+# saveRDS(resultat.MIPCA, "resultat.MIPCA.rds")
+resultat.MIPCA <- readRDS("resultat.MIPCA.rds")
+
+# 2. Charger et afficher le premier graphique (individus supplémentaires)
+# p_ind <- plot(resultat.MIPCA, choice = "ind.supp", axes = c(1, 2), new.plot = FALSE)
+# saveRDS(p_ind, "resultat.plot_ind_supp.rds")
+readRDS("resultat.MIPCA.plot_ind_supp.rds")
+
+# 3. Charger et afficher le second graphique (variables)
+# p_var <- plot(resultat.MIPCA, choice = "var", axes = c(1, 2), new.plot = FALSE)
+# saveRDS(p_var, "resultat.plot_var.rds")
+readRDS("resultat.MIPCA.plot_var.rds")
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| output: false
+# All variables
+evaluation <- missMDA::Overimpute(
+  resultat.MIPCA,
+  plotvars = seq_len(ncol(X.nutriments))
+)
+
+missMDA::Overimpute(
+  resultat.MIPCA,
+  plotvars = which(names(X.nutriments) == "N_municipal")
+)
+
+missMDA::Overimpute(
+  resultat.MIPCA,
+  plotvars = which(names(X.nutriments) == "BOD_municipal")
+)
+```
 
 ## Rapprochement des jeux de données
  *ICI.A.VOIR ⚠️*
@@ -874,8 +981,8 @@ Enfin, afin de limiter les problèmes de multicolinéarité lors de la modélisa
 #| label: preparation-donnees-modeles
 #| include: false
 
-#| label: preparation-donnees-modeles
 
+### 1️⃣ DATA SET SANS IMPUTATION ###
 # ACP : nutriments retenus sans valeurs manquantes
 data.nutriment.clean <- data.nutriment %>%
   select(-N_other, -N_industrial, -N_municipal) %>%
@@ -907,6 +1014,28 @@ data.analyse.phyto <- data.analyse %>%
 
 # Captures de poissons
 data.analyse.fish <- data.analyse %>%
+  filter(!is.na(fish_catch)) %>%
+  select(-phyto_richness)
+
+### 2️⃣ DATA SET AVEC IMPUTATION ###
+# Jointure avec les nutriments imputés
+data.analyse.impute <- data.biotic %>%
+  left_join(
+    data.nutriment.impute %>%
+      select(-N_other, -N_industrial, -N_municipal),
+    by = c("year", "area"),
+    relationship = "many-to-one"
+  )
+
+stopifnot(nrow(data.analyse.impute) == nrow(data.biotic))
+
+# Richesse phytoplanctonique : données imputées
+data.analyse.phyto.impute <- data.analyse.impute %>%
+  filter(!is.na(phyto_richness)) %>%
+  select(-fish_catch)
+
+# Captures de poissons : données imputées
+data.analyse.fish.impute <- data.analyse.impute %>%
   filter(!is.na(fish_catch)) %>%
   select(-phyto_richness)
 ```
