@@ -577,61 +577,22 @@ data.spatial %>%
   theme_minimal()
 ```
 
-
-## Vérification d'éventuelle colinéarité entre les variables réponses {#sec-correlation}
-Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problémes de multicolinéarité.]
-
-### VERSION 1:
-Pour cela nous examinons le coefficients de corrélation de Pearson, retenons un seuil de |r|>0,7 pour identifier les corréaltions fortes susceptibles, et |p|>0,05. Cet analyse met en évidence plusieurs associations significatives entre les apports en azote et en phosphore, notamment `r paste(apply(expand.grid(N = grep("^N_", variables.nutriments, value = TRUE), P = grep("^P_", variables.nutriments, value = TRUE)), 1, function(x) { r <- resultat.correlation$r[x[1], x[2]]; p <- resultat.correlation$P[x[1], x[2]]; if (!is.na(p) && p < 0.05 && abs(r) >= 0.7) paste0(x[1], " et ", x[2], " (r = ", round(r, 2), " ; p = ", format.pval(p, digits = 2, eps = 0.001), ")") else NA_character_ }) |> na.omit(), collapse = ", ")` (@fig-correlation-nutriments).
-Afin de limiter la redondance entre les variables explicatives, nous choisissons d'écarter N_other et de conserver P_other, cette dernière ne présentant aucune valeur manquante, contre 17,7 % pour N_other.
-*A.VOIR.ICI ⚠️ SI ON MAINTIENT >=0.7 ou autre!!! JE NE SUIS PAS TROP SUR ET CA CHANGE LES RESULTATS...*
-
-### VERSION 2:
-Pour cela nous examinons le coefficients de corrélation de Pearson, retenons un seuil de |r|>0,6 pour identifier les corréaltions fortes susceptibles, et |p|>0,05. Cet analyse met en évidence plusieurs associations significatives entre les apports en azote et en phosphore, notamment `r paste(apply(expand.grid(N = grep("^N_", variables.nutriments, value = TRUE), P = grep("^P_", variables.nutriments, value = TRUE)), 1, function(x) { r <- resultat.correlation$r[x[1], x[2]]; p <- resultat.correlation$P[x[1], x[2]]; if (!is.na(p) && p < 0.05 && abs(r) >= 0.6) paste0(x[1], " et ", x[2], " (r = ", round(r, 2), " ; p = ", format.pval(p, digits = 2, eps = 0.001), ")") else NA_character_ }) |> na.omit(), collapse = ", ")` (@fig-correlation-nutriments).
-Compte tenu de ces corrélations et de la proportion plus importante de valeurs manquantes dans les variables relatives à l'azote (17,7 % chacune), nous avons choisi d'écarter `N_municipal`, `N_industrial` et `N_other` des modèles principaux afin de privilégier les variables relatives au phosphore et de limiter la perte d'observations. Cette décision ne signifie toutefois pas que l'azote est sans importance écologique.
-
-```{r}
-#| label: fig-correlation-nutriments
-#| fig-cap: "Corrélations de Pearson entre les apports en nutriments et leur significativité statistique"
-#| fig-width: 9
-#| fig-height: 8
-#| echo: false
-#| message: false
-#| warning: false
-
-# Corrélations et p-values
-resultat.correlation <- Hmisc::rcorr(
-  as.matrix(data.nutriment %>%
-              select(all_of(variables.nutriments))),
-  type = "pearson"
-)
-
-# Représentation graphique
-corrplot::corrplot(
-  resultat.correlation$r,
-  method = "square",
-  type = "upper",
-  diag = FALSE,
-  addCoef.col = "black",
-  tl.col = "black",
-  number.cex = 0.7,
-  tl.cex = 0.8,
-  p.mat = 1 - abs(resultat.correlation$r),
-  sig.level = 0.3,
-  insig = "pch",
-  pch = 4,
-  pch.col = grDevices::adjustcolor("red", alpha.f = 0.3)
-)
-```
-
 ## Valeurs manquantes
-L'exploration initiale des jeux de données a révélé la présence de valeurs manquantes (@sec-stats-dscrip-general). Avant de procéder aux analyses statistiques, nous examinons leur fréquence ainsi que leur répartition spatiale et temporelle.
+Au début de la visualisation de notre jeu de données nous avons pu remarquer qu'il y en avait des valeurs manquantes (@sec-stats-dscrip-general). Ce fait est important, car ces valeurs manquantes pourrait avoir un impacte sur notre analyse de données et limiter la représentativité des analyses.
 
 Une suppression systématique des observations incomplètes pourrait entraîner une perte importante d'informations. Nous chercherons donc à conserver le maximum d'observations disponibles, en adaptant le traitement des valeurs manquantes aux variables utilisées dans chaque analyse.
 
 ### Quantification des valeurs manquantes
+#### Variable explicarive
+Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs manquantes pour chaque variable @tbl-valeurs-manquantes. Les proportions de valeurs manquantes sont également représentées graphiquement afin d'identifier les variables les plus concernées @fig-valeurs-manquantes.
 
-Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs manquantes pour chaque variable.
+Noius pouvons voir que de nos variables explicatives les variabels les plus concernés sont `N_other` `N_municipal` et `N_industrial`.
+
+En cas de concerver ces variables après analyse de corrélation, des méthodes d'imputations existent comme celles proposées dans le package `missMDA` (Josse & Husson, 2016). *ICI.A.VOIR ⚠️*
+
+::: {.columns}
+
+::: {.column width="45%"}
 
 ```{r}
 #| label: tbl-valeurs-manquantes
@@ -644,11 +605,7 @@ Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs man
 miss_var_summary(data.nutriment) %>%
   knitr::kable(caption = "Nutriments")
 
-miss_var_summary(data.biotic) %>%
-  knitr::kable(caption = "Variables biotiques")
 ```
-
-Les proportions de valeurs manquantes sont également représentées graphiquement afin d'identifier les variables les plus concernées.
 
 ```{r}
 #| label: fig-valeurs-manquantes
@@ -656,7 +613,7 @@ Les proportions de valeurs manquantes sont également représentées graphiqueme
 #| fig-subcap:
 #|   - "Données biotiques"
 #|   - "Apports en nutriments"
-#| layout-ncol: 2
+#| layout-ncol: 1
 #| fig-width: 7
 #| fig-height: 5
 #| echo: false
@@ -665,42 +622,16 @@ Les proportions de valeurs manquantes sont également représentées graphiqueme
 #| output: true
 
 gg_miss_var(
-  data.biotic,
-  show_pct = TRUE
-) +
-  labs(x = "Variable", y = "Nombre de valeurs manquantes")
-
-gg_miss_var(
   data.nutriment,
   show_pct = TRUE
 ) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
 ```
 
-### Répartition des valeurs manquantes
-Nous examinons ensuite la répartition des valeurs manquantes entre les sous-bassins, afin de déterminer si certains présentent davantage d'observations incomplètes que d'autres.
+:::
 
-```{r}
-#| label: tbl-manquantes-sub-basin
-#| tbl-cap: "Valeurs manquantes par sous-bassin"
-#| echo: false
-#| message: false
-#| warning: false
-#| output: true
+:::
 
-data.biotic %>%
-  group_by(sub_basin) %>%
-  summarise(
-    n = n(),
-    NA_phyto = sum(is.na(phyto_richness)),
-    NA_fish = sum(is.na(fish_catch)),
-    .groups = "drop"
-  ) %>%
-  knitr::kable()
-```
-
-### Valeurs manquantes
-Au début de la visualisation de noter jeu de données nous avons pu remarquer qu'il y en avait des valeurs manquantes (@sec-stats-dscrip-general). Cette étape est  importante, car ces valeurs manquantes pourrait avoir un impacte sur notre analyse de données et limiter la représentativité des analyses.
 
 #### Variable réponse
 ```{r}
@@ -734,16 +665,64 @@ manquantes.area <- data.biotic %>%
   )
 ```
 
-Concernant nos variables réponses (@fig-manquantes-temps), nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations. Ces valeurs manquantes concernent notamment `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")`.
+Concernant nos variables réponses (@fig-manquantes-temps), nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations (@tbl-valeurs-manquantes-biotic). Ces valeurs manquantes concernent notamment `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-valeurs-manquantes-biotic).
 
-À l'échelle des zones géographiques (`area`), les valeurs manquantes représentent `r paste0(manquantes.area$pct, " % des observations de ", manquantes.area$area, collapse = " et ")`. Répartition relativement similaire entre les deux. 
+À l'échelle des zones géographiques (`area`), les valeurs manquantes représentent `r paste0(manquantes.area$pct, " % des observations de ", manquantes.area$area, collapse = " et ")` (@fig-manquantes-temps-biotic). Répartition relativement similaire entre les deux. 
 
-Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. *ICI.A.VOIR ⚠️*
+Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. *ICI.A.VOIR IMPORTANT POUR GLM ⚠️*
 
 Pour affronter cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`.  *ICI.A.VOIR ⚠️*
 
+::: {.columns}
+
+::: {.column width="45%"}
+
 ```{r}
-#| label: fig-manquantes-temps
+#| label: tbl-valeurs-manquantes-biotic
+#| tbl-cap: "Valeurs manquantes dans les deux jeux de données"
+#| echo: false
+#| message: false
+#| warning: false
+#| output: true
+
+
+miss_var_summary(data.biotic) %>%
+  knitr::kable(caption = "Variables biotiques")
+```
+
+```{r}
+#| label: fig-valeurs-manquantes-biotic
+#| fig-cap: "Pourcentage de valeurs manquantes par variable"
+#| fig-subcap:
+#|   - "Données biotiques"
+#|   - "Apports en nutriments"
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 5
+#| echo: false
+#| message: false
+#| warning: false
+#| output: true
+
+gg_miss_var(
+  data.biotic,
+  show_pct = TRUE
+) +
+  labs(x = "Variable", y = "Nombre de valeurs manquantes")
+
+gg_miss_var(
+  data.nutriment,
+  show_pct = TRUE
+) +
+  labs(x = "Variable", y = "Nombre de valeurs manquantes")
+```
+
+:::
+
+:::
+
+```{r}
+#| label: fig-manquantes-temps-biotic
 #| fig-cap: "Répartition temporelle et spatiale des valeurs manquantes"
 #| fig-subcap:
 #|   - "Par sous-bassin"
@@ -805,9 +784,86 @@ data.biotic %>%
   ))
 ```
 
+## Vérification d'éventuelle colinéarité entre les variables réponses {#sec-correlation}
+Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problémes de multicolinéarité.]
+
+```{r}
+#| label: correlation-calc
+#| echo: false
+#| message: false
+#| warning: false
+# Corrélations et p-values
+resultat.correlation <- Hmisc::rcorr(
+  as.matrix(data.nutriment %>%
+              select(all_of(variables.nutriments))),type = "pearson")
+```
+
+Pour cela nous examinons le coefficients de corrélation de Pearson (@fig-correlation-nutriments), retenons un seuil de |r|>0,6 et p<0,05 pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
+```{r}
+#| echo: false
+#| results: asis
+
+apply(
+  which(
+    upper.tri(resultat.correlation$r) &
+    abs(resultat.correlation$r) >= 0.6 &
+    resultat.correlation$P < 0.05,
+    arr.ind = TRUE
+  ),
+  1,
+  function(x) {
+    cat(
+      "- ``", rownames(resultat.correlation$r)[x[1]],
+      "`` et ``", colnames(resultat.correlation$r)[x[2]],
+      "`` : r = ", round(resultat.correlation$r[x[1], x[2]], 2),
+      " ; p ", format.pval(resultat.correlation$P[x[1], x[2]],
+                          digits = 2, eps = 0.001),
+      "\n", sep = ""
+    )
+  }
+)
+```
+
+En prenant en compte ces associations et de la proportion de valeurs manquantes dans les variables relatives à l'azote (17,7 % chacune), nous choisissons d'exclure `N_industrial` (représenter par `P_industrial`) et `N_other` (representer par `P_other`) des modèles principaux afin de limiter la perte d'observations.
+
+Cependant, plusieurs corrélations dépassant le seuil retenu persistent entre les variables conservées : `P_municipal` et `P_industrial`, `P_municipal` et `BOD_municipal`, `P_industrial` et `BOD_municipal`, ainsi que `BOD_municipal` et `BOD_industrial`.
+
+Nous choisissons néanmoins de conserver provisoirement les trois variables relatives au phosphore (`P_municipal`, `P_industrial` et `P_other`), car elles permettent de distinguer les apports selon leur origine municipale, industrielle ou autre.
+
+Nous conservons également, à ce stade, `BOD_municipal` et `BOD_industrial`, car ces variables renseignent sur les charges de pollution organique biodégradable, une dimension environnementale différente des apports en phosphore. Leur corrélation avec certaines variables phosphorées pourrait néanmoins traduire des sources de pollution communes, rendant difficile la séparation de leurs effets respectifs.
+
+Ainsi, les cinq variables explicatives restantes (`N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal` et `BOD_industrial`) sont maintenues comme prédicteurs candidats. Une vérification complémentaire de la multicolinéarité sera réalisée lors de la construction des modèles, notamment à l'aide du facteur d'inflation de la variance (VIF) (@sec-glm), afin de déterminer quelles combinaisons de variables peuvent être retenues.
+
+```{r}
+#| label: fig-correlation-nutriments
+#| fig-cap: "Corrélations de Pearson entre les apports en nutriments et leur significativité statistique"
+#| fig-width: 9
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+# Représentation graphique
+corrplot::corrplot(
+  resultat.correlation$r,
+  method = "square",
+  type = "upper",
+  diag = FALSE,
+  p.mat = resultat.correlation$P,
+  sig.level = c(0.001, 0.01, 0.05),
+  insig = "label_sig",
+  pch.cex = 0.9,
+  pch.col = "black",
+  tl.col = "black",
+  tl.cex = 0.8
+)
+```
+## Imputation
+
+
 ## Rapprochement des jeux de données
  *ICI.A.VOIR ⚠️*
- 
+
 Les données des deux jeux sont associées à partir de l'année (`year`) et du zone géographique (`area`) correspondant au jeux données `data.analyse`.^[Plusieurs sous-bassins pouvant apparten à un même secteur, une même valeur d'apport en nutriments peut donc être attribuée à plusieurs observations biologiques.]
 
 Afin de conserver le maximum d'informations disponibles pour nos modéles, nous constituons deux jeux de données distincts, correspondant à nos deux variables réponses : la richesse phytoplanctonique (`phyto_richness`, `data.analyse.phyto`) et les captures de poissons (`fish_catch`, `data.analyse.fish`). Nous supprimons uniquement les observations pour lesquelles la variable réponse étudiée est manquante.
@@ -816,38 +872,44 @@ Enfin, afin de limiter les problèmes de multicolinéarité lors de la modélisa
 
 ```{r}
 #| label: preparation-donnees-modeles
+#| include: false
 
-# ACP et colinéarité : nutriments sans NA
+#| label: preparation-donnees-modeles
+
+# ACP : nutriments retenus sans valeurs manquantes
 data.nutriment.clean <- data.nutriment %>%
-  drop_na(all_of(variables.nutriments)) #%>%
-  #select(-) #ICI ENELEVER VARIABLES AVEC CORRELATION
+  select(-N_other, -N_industrial, -N_municipal) %>%
+  drop_na()
 
-# Jointure pour les analyses Y ~ X
+# Jointure pour les analyses Y ~ X (avec NA possibles)
 {
-  #data.nutriment.noncor <- data.nutriment %>%
-    #select(-N_municipal, -N_industrial)  #ICI ENELEVER VARIABLES AVEC CORRELATION
+  data.nutriment.noncor <- data.nutriment %>%
+    select(-N_other, -N_industrial, -N_municipal)
   
   stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  
   data.analyse <- data.biotic %>%
     left_join(
-      data.nutriment, #data.nutriment.noncor,
+      data.nutriment.noncor,
       by = c("year", "area"),
       relationship = "many-to-one"
     )
+  
   stopifnot(nrow(data.analyse) == nrow(data.biotic))
+  
+  rm(data.nutriment.noncor)
 }
 
-# GLMM/LM/ETC... : richesse phytoplanctonique
+# Richesse phytoplanctonique
 data.analyse.phyto <- data.analyse %>%
   filter(!is.na(phyto_richness)) %>%
   select(-fish_catch)
 
-# GLMM/LM/ETC...: Captures de poissons
+# Captures de poissons
 data.analyse.fish <- data.analyse %>%
   filter(!is.na(fish_catch)) %>%
   select(-phyto_richness)
 ```
-  
 
 ## ANALYSE multivarie
 
