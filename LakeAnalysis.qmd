@@ -979,13 +979,13 @@ Pour chacune de ces versions, nous créons deux jeux de données distincts corre
 ### 1️⃣ DATA SET SANS IMPUTATION ###
 # ACP : nutriments retenus sans valeurs manquantes
 data.nutriment.clean <- data.nutriment %>%
-  select(-N_other, -N_industrial, -N_municipal) %>%
+  select(-N_other, -N_industrial) %>%
   drop_na()
 
 # Jointure pour les analyses Y ~ X (avec NA possibles)
 {
   data.nutriment.noncor <- data.nutriment %>%
-    select(-N_other, -N_industrial, -N_municipal)
+    select(-N_other, -N_industrial)
   
   stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
   
@@ -1016,7 +1016,7 @@ data.analyse.fish <- data.analyse %>%
 data.analyse.impute <- data.biotic %>%
   left_join(
     data.nutriment.impute %>%
-      select(-N_other, -N_industrial, -N_municipal),
+      select(-N_other, -N_industrial),
     by = c("year", "area"),
     relationship = "many-to-one"
   )
