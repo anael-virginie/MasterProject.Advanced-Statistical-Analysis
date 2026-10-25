@@ -785,17 +785,41 @@ data.biotic %>%
 ```
 
 ## Vérification d'éventuelle colinéarité entre les variables réponses {#sec-correlation}
-Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problémes de multicolinéarité.]
+Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problémes de multicolinéarité.] 
 
+Pour faire cela, nous devons d'abord vérifier que nos variables concernant les nutriments suivent la loi normale (@tbl-shapirotest-calc). Du fait qu'elles ne la suivent pas, le test de corrélation sera effectué avec un test non-paramètrique: celui de Spearman.
+```{r}
+#| label: tbl-shapirotest-calc
+#| echo: false
+#| message: false
+#| warning: false
+results_shapiro_test <- lapply(data.nutriment %>% select(all_of(variables.nutriments)), shapiro.test)
+p_values_nutriments <- sapply(results_shapiro_test, function(x) x$p.value)
+
+p_values_nutriments %>%
+  enframe(name = "Variable", value = "p_value") %>%
+  mutate(
+    es_normal = p_value > 0.05,
+    
+    p_value = format(p_value, scientific = TRUE, digits = 3),
+    
+    Normalité = ifelse(es_normal, "Oui", "Non")
+  ) %>%
+  select(-es_normal) %>% 
+  kable(caption = "Résultats de normalité de Shapiro-Wilk")
+
+```
 ```{r}
 #| label: correlation-calc
 #| echo: false
 #| message: false
 #| warning: false
+# Vérification normalité
+
 # Corrélations et p-values
 resultat.correlation <- Hmisc::rcorr(
   as.matrix(data.nutriment %>%
-              select(all_of(variables.nutriments))),type = "pearson")
+              select(all_of(variables.nutriments))),type = "spearman")
 ```
 
 Pour cela nous examinons le coefficients de corrélation de Pearson (@fig-correlation-nutriments), retenons un seuil de |r|>0,6 et p<0,05 pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
