@@ -1,5 +1,5 @@
 ---
-title: "Étude d’impact d’un projet routier sur des Amphibiens"
+title: "Analyse statistique de l’influence des nutriments sur le phytoplancton et les captures de poissons"
 author: "GOURBILLON Candys, DELANNOY Mathéo, LENQUETTE Anael, LAPORTE Paul"
 lang: fr
 number-sections: true
