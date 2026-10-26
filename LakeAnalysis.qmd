@@ -1066,7 +1066,146 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 ### RDA
 
 
-## GLM / GLMM etc..
+### GLM / GLMM
+
+#### GLMM Fish catch 
+
+```{r}
+##################################### IMPORT GLMM ##################################
+# Jointure pour les analyses Y ~ X (avec NA possibles) GLMM (sans retrait des N corrélés)
+
+{
+  data.nutriment.cor <- data.nutriment
+  
+  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  
+  data.analyse.GLMM <- data.biotic %>%
+    left_join(
+      data.nutriment.cor,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    )
+  
+  stopifnot(nrow(data.analyse) == nrow(data.biotic))
+  
+  rm(data.nutriment.cor)
+}
+
+data.analyse.fish.GLMM <- data.analyse.GLMM %>%
+  filter(!is.na(fish_catch)) %>%
+  select(-phyto_richness)
+
+data.analyse.fish.GLMM <- data.analyse.fish %>%
+  mutate(
+    P_total = P_municipal + P_industrial + P_other,
+    N_total = N_municipal + N_industrial + N_other,
+    BOD_total = BOD_municipal + BOD_industrial
+  ) # ajout des colonnes aggrégées 
+
+data.analyse.fish.GLMM <- data.analyse.fish.GLMM  %>% 
+  select(-N_other, -N_industrial)  # retrait des N corrélés 
+
+data.analyse.fish.GLMM <- data.analyse.fish.GLMM %>%
+  mutate(
+    across(
+      c(P_municipal, P_industrial, P_other,
+        N_municipal,
+        BOD_municipal, BOD_industrial,
+        P_total, N_total, BOD_total),
+      ~ as.numeric(scale(.x))
+    )
+  ) # Standardisation des colonnes nutriments 
+
+```
+
+Définition des hypothèses : 
+- H1 
+- H2 
+- H3 
+
+```{r}
+############################ Choix de la loi ####################################
+
+# Les données sont quantitatives continues, ainsi nous explorons la viabilité 
+# d'un modèle GLMM suivant la loi Gamma
+
+m_gamma_fish <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+
+res <- simulateResiduals(m_gamma_fish)
+plot(res)
+testUniformity(res)
+testDispersion(res)
+```
+
+```{r}
+############################# Analyse des effets ##############################
+
+# Modèle pour explorer les effets de chaque type de loading
+m_fish_Complet <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + 
+    BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+summary(m_fish_Complet)
+
+# Modèle pour explorer les effets de chaque type de nutri indépendamment du loading
+m_fishTot <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+summary(m_fishTot)
+```
+
+```{r}
+######################## Recherche du meilleur modèle via AIC ########################
+
+# Modèle BOD 
+m_fish_BOD <- glmmTMB(
+  fish_catch ~ BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+
+# Modèle P
+m_fish_P <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+
+# Comparaison AIC 
+models_fish <- MuMIn::model.sel(
+  m_fish_P,
+  m_fish_BOD,
+  m_fish_Complet,
+  rank = "AIC"
+)
+# Meilleur model = m_fish_BOD
+```
+
+```{r}
+######################## Evaluer qualité du modèle choisi ######################
+
+library(DHARMa)
+
+residus_BOD <- simulateResiduals(m_fish_BOD, n = 250)
+
+plot(residus_BOD)
+testUniformity(residus_BOD)
+testDispersion(residus_BOD) # surdispersion reste à vérifier 
+testOutliers(residus_BOD)
+```
 
 
 # Discussion
