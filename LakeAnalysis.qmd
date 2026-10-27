@@ -20,7 +20,9 @@ editor:
 ```{r initialisation}
 #| include: false
 # install.packages(c("readxl", "tidyverse", "naniar", "knitr",
-#                    "glmmTMB", "DHARMa", "performance", "vegan"))
+#                    "glmmTMB", "DHARMa", "performance", "vegan", "FactoMineR", "factoextra"))
+library(FactoMineR)
+library(factoextra)
 library(readxl)
 library(tidyverse)
 library(naniar)
@@ -1058,10 +1060,124 @@ data.analyse.fish.impute <- data.analyse.impute %>%
   select(-phyto_richness)
 ```
 
-## ANALYSE multivarie
 
-### PCA
+## Analyse multivariée
 
+### Analyse en composantes principales (ACP)
+
+L'analyse en composantes principales (ACP) est utilisée afin de synthétiser l'information contenue dans les variables décrivant les apports en nutriments et de visualiser leurs relations. Cette approche permet notamment d'identifier d'éventuels gradients environnementaux et de mettre en évidence les variables contribuant le plus à la variabilité observée.
+
+Compte tenu des corrélations précédemment observées entre plusieurs apports, l'ACP fournit également une représentation simplifiée de la structure de dépendance entre les variables.
+
+L'analyse est réalisée sur les variables quantitatives retenues après l'étude des corrélations, en utilisant des données centrées et réduites afin de rendre comparables les variables exprimées dans des unités différentes.
+
+#### Réalisation de l'ACP
+```{r}
+#| label: pca-calcul
+#| echo: false
+#| message: false
+#| warning: false
+
+data.pca <- data.nutriment.clean %>%
+  select(N_municipal,
+         P_municipal,
+         P_industrial,
+         P_other,
+         BOD_municipal,
+         BOD_industrial)
+
+res.pca <- FactoMineR::PCA(
+  data.pca,
+  scale.unit = TRUE,
+  graph = FALSE)
+```
+
+#### Variance expliquée par les axes
+
+Nous examinons tout d'abord la proportion de variance expliquée par les composantes principales afin de déterminer combien d'axes résument efficacement l'information contenue dans les variables environnementales.
+
+```{r}
+#| label: fig-pca-eigenvalues
+#| echo: false
+#| message: false
+#| warning: false
+fviz_eig(res.pca,addlabels = TRUE)
+```
+Les deux premiers axes résument l'essentiel de la variabilité des données environnementales. Le premier axe explique 49,3 % de la variance totale tandis que le second en explique 30,2 %. Ensemble, les deux premiers axes représentent donc 79,5 % de la variance observée (@fig-pca-eigenvalues).
+
+Les axes suivants expliquant chacun moins de 10 % de la variance, leur contribution est considérée comme secondaire pour l'interprétation écologique des données. Nous concentrons ainsi l'interprétation de l'ACP sur les deux premiers axes.
+
+#### Relations entre les variables environnementales
+
+Le cercle des corrélations permet d'interpréter les gradients environnementaux représentés par les axes principaux.
+
+```{r}
+#| label: fig-pca-correlation
+#| echo: false
+#| message: false
+#| warning: false
+fviz_pca_var(res.pca,
+             col.var = "contrib",
+             gradient.cols = c("lightblue", "blue", "red"),
+             repel = TRUE)
+```
+Le cercle des corrélations met en évidence les relations entre les différentes variables décrivant les apports en nutriments et leur contribution aux deux premiers axes de l'ACP (@fig-pca-correlation).
+
+Le premier axe (Dim1), qui explique 49,3 % de la variance totale, est principalement associé à BOD_municipal, P_municipal, P_industrial et BOD_industrial. Il semble ainsi représenter un gradient général d'apports phosphorés et de charge organique d'origine anthropique.
+
+Le second axe (Dim2), qui explique 30,2 % de la variance totale, est essentiellement structuré par P_other et N_municipal. Cet axe traduit donc un second gradient environnemental relativement indépendant du premier.
+
+
+
+#### Répartition des observations dans l'espace multivarié
+
+Nous représentons ensuite les observations selon les deux premiers axes afin d'évaluer l'existence éventuelle d'une structuration spatiale entre les secteurs étudiés.
+
+```{r}
+#| label: fig-pca-individus
+#| echo: false
+#| message: false
+#| warning: false
+
+coord.ind <- as.data.frame(res.pca$ind$coord)
+coord.ind$area <- data.nutriment.clean$area
+
+fviz_pca_ind(res.pca,
+             geom = "point",
+             habillage = coord.ind$area,
+             addEllipses = TRUE,
+             palette = c("Central Paijanne" = col.central,
+                         "Northen Paijanne" = col.nothen))
+```
+La projection des observations sur les deux premiers axes de l'ACP met en évidence une séparation nette entre les zones Central Paijanne et Northen Paijanne (@fig-pca-individus). Cette différenciation est principalement portée par l'axe 2, associé notamment à N_municipal et P_other (@fig-pca-correlation).
+Ces résultats indiquent que la variable area constitue une source importante de variation environnementale et devra être prise en compte dans les analyses ultérieures.
+
+#### Contribution des variables aux axes principaux
+
+Afin d'interpréter les gradients identifiés par l'ACP, nous examinons la contribution des différentes variables aux premiers axes.
+
+```{r}
+#| label: fig-pca-contrib1
+#| echo: false
+#| message: false
+#| warning: false
+fviz_contrib(res.pca,
+             choice = "var",
+             axes = 1)
+```
+```{r}
+#| label: fig-pca-contrib2
+#| echo: false
+#| message: false
+#| warning: false
+fviz_contrib(res.pca,
+             choice = "var",
+             axes = 2)
+```
+L'examen des contributions des variables montre que l'axe 1 est principalement structuré par BOD_municipal, P_municipal, P_industrial et BOD_industrial (@fig-pca-contrib1), tandis que l'axe 2 est essentiellement porté par P_other et N_municipal  (@fig-pca-contrib2). Ces résultats confirment l'existence de deux gradients environnementaux distincts au sein des apports en nutriments.
+
+## conclusion 
+Dans l'ensemble, l'ACP met en évidence deux gradients environnementaux principaux résumant près de 80 % de la variabilité des apports en nutriments. Elle révèle également une différenciation nette entre les zones Central Paijanne et Northen Paijanne, justifiant la prise en compte de la structure spatiale dans les analyses multivariées suivantes.
 
 ### RDA
 
