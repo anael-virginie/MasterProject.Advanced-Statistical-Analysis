@@ -31,6 +31,8 @@ library(performance)
 library(vegan)
 library(missMDA)
 library(Hmisc)
+library(MuMIn)
+library(lme4)
 knitr::opts_chunk$set(fig.align = "center", fig.width = 9, fig.height = 5)
 theme_set(theme_minimal(base_size = 12))
 
@@ -1132,7 +1134,7 @@ m_gamma_fish <- glmmTMB(
   family = Gamma(link = "log"),
   data = data.analyse.fish.GLMM
 )
-# Diagnostique
+# Diagnostic
 res <- simulateResiduals(m_gamma_fish)
 plot(res)
 testUniformity(res)
@@ -1149,7 +1151,7 @@ m_lme_fish <- lmer(
   data = data.analyse.fish.GLMM,
   REML = FALSE
 )
-# Diagnostique
+# Diagnostic
 par(mfrow = c(1, 2))
 plot(
   fitted(m_lme_fish),
