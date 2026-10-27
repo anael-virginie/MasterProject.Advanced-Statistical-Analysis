@@ -1118,29 +1118,93 @@ data.analyse.fish.GLMM <- data.analyse.fish.GLMM %>%
 
 ```
 
-Définition des hypothèses : 
-- H1 
-- H2 
-- H3 
 
 ```{r}
-############################ Choix de la loi ####################################
+############################ Choix du modèle ####################################
 
 # Les données sont quantitatives continues, ainsi nous explorons la viabilité 
-# d'un modèle GLMM suivant la loi Gamma
+# d'un GLMM suivant la loi Gamma
 
+# Modèle 
 m_gamma_fish <- glmmTMB(
   fish_catch ~ P_total + N_total + BOD_total + year +
     (1 | sub_basin),
   family = Gamma(link = "log"),
   data = data.analyse.fish.GLMM
 )
-
+# Diagnostique
 res <- simulateResiduals(m_gamma_fish)
 plot(res)
 testUniformity(res)
-testDispersion(res)
+testDispersion(res) # Légère surdispersion détectée p = 0.048
+testOutliers(res) # comme anticipé, on détecte des valeurs extrêmes mais celle-ci ne sont 
+# pas suffisantes pour rejeter le modele 
+
+## Nous comparons ce modèle à un LME 
+
+# Modèle 
+m_lme_fish <- lmer(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  data = data.analyse.fish.GLMM,
+  REML = FALSE
+)
+# Diagnostique
+par(mfrow = c(1, 2))
+plot(
+  fitted(m_lme_fish),
+  residuals(m_lme_fish),
+  xlab = "Valeurs prédites",
+  ylab = "Résidus",
+  main = "LME : homoscédasticité"
+)
+abline(h = 0, lty = 2)
+qqnorm(residuals(m_lme_fish), main = "LME : normalité")
+qqline(residuals(m_lme_fish))
+par(mfrow = c(1, 1))
+
+## Comparaison AIC
+AIC(m_gamma_fish, m_lme_fish) # Modèle gamma large favori (AIC = -104 vs AIC = -60)
+
+# Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC
+# Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
+# attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
 ```
+
+```{r}
+############################# Vérification différences d'effets entre area ###################
+
+# Modèle sans interaction area 
+m_add <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year + area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+# Modèle avec interaction area 
+m_int <- glmmTMB(
+  fish_catch ~ (P_total + N_total + BOD_total + year) * area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+summary(m_int) # Effet de BOD differe selon area : significatif pour North
+
+# Comparaison 
+anova(m_add, m_int) # l'effet d'au moins une VA varie significativement selon l'area p = 0.029
+AIC(m_add, m_int) # Modèle avec interaction meilleur (AIC = -102 vs AIC = -105)
+
+```
+
+Définition des hypothèses : 
+
+- H1 : tous les nutriments ont un effet et celui-ci diffère selon le type de loading
+
+- H2 : tous les nutriments ont un effet indépendemment du type de loading 
+
+- H3 : seul BOD à un effet 
+
+- H4 : seul P à un effet 
 
 ```{r}
 ############################# Analyse des effets ##############################
