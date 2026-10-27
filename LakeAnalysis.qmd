@@ -17,6 +17,17 @@ editor:
     canonical: false
     wrap: 72
 ---
+# Introduction
+
+L'eutrophisation des milieux aquatiques constitue une problématique majeure notament dans l'écosystème des lacs. Les apports excessifs en nutriments, comme le phosphore et l'azote, peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplancton et affecter les communautés de poissons.
+
+Afin de mieux comprendre ces relations, un suivi à long terme a été réalisé sur le lac Päijänne (Finlande). Ce suivi comprend des mesures annuelles d'apports en nutriments et de plusieurs indicateurs biologiques répartis dans différents secteurs du lac.
+
+L'objectif de cette étude est d'identifier les facteurs environnementaux susceptibles d'influencer deux indicateurs biologiques : la richesse phytoplanctonique (`phyto_richness`) et les captures de poissons (`fish_catch`). Pour cela, nous analysons l'évolution spatiale et temporelle des apports en nutriments ainsi que leurs relations avec les réponses biologiques observées.
+
+L'analyse est réalisée en plusieurs étapes. Nous commençons par une exploration descriptive des données afin d'examiner leur structure, leurs distributions et les éventuelles valeurs manquantes. Nous étudions ensuite les relations entre les variables environnementales et biologiques, ainsi que les corrélations entre les différents nutriments. Enfin, des approches multivariées et des modèles statistiques seront utilisés pour identifier les facteurs les plus fortement associés aux variations observées des communautés biologiques.
+
+
 ```{r initialisation}
 #| include: false
 # install.packages(c("readxl", "tidyverse", "naniar", "knitr",
