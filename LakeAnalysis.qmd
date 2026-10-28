@@ -1001,8 +1001,8 @@ Pour chacune de ces versions, nous créons deux jeux de données distincts corre
 #| label: preparation-donnees-modeles
 #| include: false
 
-
-### 1️⃣ DATA SET SANS IMPUTATION ###
+# ------------------------------------ #
+### I. DATA SET SANS IMPUTATION ###
 # ACP : nutriments retenus sans valeurs manquantes
 data.nutriment.clean <- data.nutriment %>%
   select(-N_other, -N_industrial) %>%
@@ -1037,7 +1037,46 @@ data.analyse.fish <- data.analyse %>%
   filter(!is.na(fish_catch)) %>%
   select(-phyto_richness)
 
-### 2️⃣ DATA SET AVEC IMPUTATION ###
+# ------------------------------------ #
+### II. DATA SET ONE-TABLE AND SUMMED ###
+# Jointure pour les analyses Y ~ X (avec NA possibles et sans retrait des variables corrélés)
+
+#PHYTO
+
+# FISH
+{
+  data.nutriment.cor <- data.nutriment
+  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  data.analyse.GLMM <- data.biotic %>%
+    left_join(
+      data.nutriment.cor,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    )
+  stopifnot(nrow(data.analyse) == nrow(data.biotic))
+  rm(data.nutriment.cor)
+}
+
+data.analyse.fish.GLMM <- data.analyse.fish %>%
+  # 1. Création des variables agrégées
+  mutate(
+    P_total = P_municipal + P_industrial + P_other,
+    N_total = N_municipal + N_industrial + N_other,
+    BOD_total = BOD_municipal + BOD_industrial
+  ) %>% 
+  # 2. Retrait des colonnes non désirées
+  select(-N_other, -N_industrial) %>% 
+  # 3. Standardisation de toutes les variables sélectionnées
+  mutate(
+    across(
+      c(P_municipal, P_industrial, P_other,
+        N_municipal,
+        BOD_municipal, BOD_industrial,
+        P_total, N_total, BOD_total),
+      ~ as.numeric(scale(.x))))
+
+# ------------------------------------ #
+### III. DATA SET AVEC IMPUTATION ###
 # Jointure avec les nutriments imputés
 data.analyse.impute <- data.biotic %>%
   left_join(
@@ -1072,53 +1111,6 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 
 #### GLMM Fish catch 
 
-```{r}
-##################################### IMPORT GLMM ##################################
-# Jointure pour les analyses Y ~ X (avec NA possibles) GLMM (sans retrait des N corrélés)
-
-{
-  data.nutriment.cor <- data.nutriment
-  
-  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
-  
-  data.analyse.GLMM <- data.biotic %>%
-    left_join(
-      data.nutriment.cor,
-      by = c("year", "area"),
-      relationship = "many-to-one"
-    )
-  
-  stopifnot(nrow(data.analyse) == nrow(data.biotic))
-  
-  rm(data.nutriment.cor)
-}
-
-data.analyse.fish.GLMM <- data.analyse.GLMM %>%
-  filter(!is.na(fish_catch)) %>%
-  select(-phyto_richness)
-
-data.analyse.fish.GLMM <- data.analyse.fish %>%
-  mutate(
-    P_total = P_municipal + P_industrial + P_other,
-    N_total = N_municipal + N_industrial + N_other,
-    BOD_total = BOD_municipal + BOD_industrial
-  ) # ajout des colonnes aggrégées 
-
-data.analyse.fish.GLMM <- data.analyse.fish.GLMM  %>% 
-  select(-N_other, -N_industrial)  # retrait des N corrélés 
-
-data.analyse.fish.GLMM <- data.analyse.fish.GLMM %>%
-  mutate(
-    across(
-      c(P_municipal, P_industrial, P_other,
-        N_municipal,
-        BOD_municipal, BOD_industrial,
-        P_total, N_total, BOD_total),
-      ~ as.numeric(scale(.x))
-    )
-  ) # Standardisation des colonnes nutriments 
-
-```
 
 
 ```{r}
