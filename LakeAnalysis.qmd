@@ -31,6 +31,8 @@ library(performance)
 library(vegan)
 library(missMDA)
 library(Hmisc)
+library(MuMIn)
+library(lme4)
 knitr::opts_chunk$set(fig.align = "center", fig.width = 9, fig.height = 5)
 theme_set(theme_minimal(base_size = 12))
 
@@ -999,8 +1001,8 @@ Pour chacune de ces versions, nous créons deux jeux de données distincts corre
 #| label: preparation-donnees-modeles
 #| include: false
 
-
-### 1️⃣ DATA SET SANS IMPUTATION ###
+# ------------------------------------ #
+### I. DATA SET SANS IMPUTATION ###
 # ACP : nutriments retenus sans valeurs manquantes
 data.nutriment.clean <- data.nutriment %>%
   select(-N_other, -N_industrial) %>%
@@ -1035,7 +1037,46 @@ data.analyse.fish <- data.analyse %>%
   filter(!is.na(fish_catch)) %>%
   select(-phyto_richness)
 
-### 2️⃣ DATA SET AVEC IMPUTATION ###
+# ------------------------------------ #
+### II. DATA SET ONE-TABLE AND SUMMED ###
+# Jointure pour les analyses Y ~ X (avec NA possibles et sans retrait des variables corrélés)
+
+#PHYTO
+
+# FISH
+{
+  data.nutriment.cor <- data.nutriment
+  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  data.analyse.GLMM <- data.biotic %>%
+    left_join(
+      data.nutriment.cor,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    )
+  stopifnot(nrow(data.analyse.GLMM) == nrow(data.biotic))
+  rm(data.nutriment.cor)
+}
+
+data.analyse.fish.GLMM <- data.analyse.GLMM %>%
+  # 1. Création des variables agrégées
+  mutate(
+    P_total = P_municipal + P_industrial + P_other,
+    N_total = N_municipal + N_industrial + N_other,
+    BOD_total = BOD_municipal + BOD_industrial
+  ) %>% 
+  # 2. Retrait des colonnes non désirées
+  select(-N_other, -N_industrial) %>% 
+  # 3. Standardisation de toutes les variables sélectionnées
+  mutate(
+    across(
+      c(P_municipal, P_industrial, P_other,
+        N_municipal,
+        BOD_municipal, BOD_industrial,
+        P_total, N_total, BOD_total),
+      ~ as.numeric(scale(.x))))
+
+# ------------------------------------ #
+### III. DATA SET AVEC IMPUTATION ###
 # Jointure avec les nutriments imputés
 data.analyse.impute <- data.biotic %>%
   left_join(
@@ -1066,8 +1107,309 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 ### RDA
 
 
-## GLM / GLMM etc..
+### GLM / GLMM
 
+#### GLMM Fish catch 
+
+##### Variables non-agrégées
+###### Hypothèses des modèles
+- M1 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons, et cet effet diffère selon l'origine des rejets (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année) ;
+- M2 (`m_fishTot`) : tous les nutriments ont un effet sur les captures, indépendamment de l'origine des rejets (phosphore, azote et DBO totaux, avec l'année) ;
+- M3 (`m_fish_BOD`) : seule la DBO a un effet sur les captures, et son origine compte (DBO municipale et industrielle séparées, avec l'année) ;
+- M4 (`m_fish_P`) : seul le phosphore a un effet sur les captures, et son origine compte (les trois sources de phosphore séparées, avec l'année).
+
+###### Choix de la loi 
+Pour voir la choix de la loi voir: @sec-fish-choix-model (résultats similaire pour les variables non-agrégées).
+
+###### Création des modèles
+Modèle pour explorer les effets de chaque type de loading
+
+```{r}
+#| label: mod-fish-complet
+
+m_fish_Complet <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + 
+    BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-fish-complet
+
+summary(m_fish_Complet)
+```
+
+Modèle pour explorer les effets de chaque type de nutri indépendamment du loading
+
+```{r}
+#| label: mod-fish-tot
+
+m_fishTot <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-fish-tot
+
+summary(m_fishTot)
+```
+
+Modèle BOD 
+
+```{r}
+#| label: mod-fish-bod
+
+m_fish_BOD <- glmmTMB(
+  fish_catch ~ BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle P
+
+```{r}
+#| label: mod-fish-p
+
+m_fish_P <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+###### Recherche du meilleur modèle via AIC
+
+Comparaison AIC 
+
+```{r}
+#| label: tbl-model-sel-fish
+#| tbl-cap: "Sélection de modèles par AIC (P, BOD et modèle complet)"
+
+models_fish <- MuMIn::model.sel(
+  m_fish_P,
+  m_fish_BOD,
+  m_fish_Complet,
+  rank = "AIC"
+)
+models_fish
+```
+
+Meilleur model = m_fish_BOD
+
+###### Evaluer qualité du modèle choisi
+
+```{r}
+#| label: res-bod
+
+library(DHARMa)
+
+residus_BOD <- simulateResiduals(m_fish_BOD, n = 250)
+```
+
+```{r}
+#| label: fig-residus-bod
+#| fig-cap: "Diagnostic des résidus simulés (DHARMa) du modèle BOD"
+
+plot(residus_BOD)
+```
+
+```{r}
+#| label: fig-uniformite-bod
+#| fig-cap: "Test d'uniformité des résidus du modèle BOD"
+
+testUniformity(residus_BOD)
+```
+
+```{r}
+#| label: fig-dispersion-bod
+#| fig-cap: "Test de dispersion des résidus du modèle BOD"
+
+testDispersion(residus_BOD)
+```
+
+surdispersion reste à vérifier 
+
+```{r}
+#| label: fig-outliers-bod
+#| fig-cap: "Test des valeurs extrêmes (outliers) du modèle BOD"
+
+testOutliers(residus_BOD)
+```
+
+
+##### Variables agrégées {#sec-fish-agregees}
+Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma
+
+###### Hypothèses des modèles
+- A1 (`m_gamma_fish`) : le phosphore, l'azote et la DBO totaux ont un effet sur les captures de poissons, indépendamment de l'origine des rejets (avec l'année) ;
+- A2 (`m_add`) : mêmes effets que A1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif) ;
+- A3 (`m_int`) : l'effet d'au moins une variable (phosphore, azote, DBO ou année) diffère selon l'area (modèle avec interaction).
+
+```{r}
+#| label: mod-gamma-fish
+
+# Modèle 
+m_gamma_fish <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+###### Choix du modèle {#sec-fish-choix-model}
+
+```{r}
+#| label: res-gamma-fish
+
+# Diagnostic
+res <- simulateResiduals(m_gamma_fish)
+```
+
+```{r}
+#| label: fig-residus-gamma-fish
+#| fig-cap: "Diagnostic des résidus simulés (DHARMa) du GLMM Gamma"
+plot(res)
+```
+
+```{r}
+#| label: fig-uniformite-gamma-fish
+#| fig-cap: "Test d'uniformité des résidus du GLMM Gamma"
+
+testUniformity(res)
+```
+
+```{r}
+#| label: fig-dispersion-gamma-fish
+#| fig-cap: "Test de dispersion des résidus du GLMM Gamma"
+
+testDispersion(res)
+```
+
+Légère surdispersion détectée p = 0.048
+
+```{r}
+#| label: fig-outliers-gamma-fish
+#| fig-cap: "Test des valeurs extrêmes (outliers) du GLMM Gamma"
+
+testOutliers(res)
+```
+
+comme anticipé, on détecte des valeurs extrêmes mais celle-ci ne sont pas suffisantes pour rejeter le modele 
+
+Nous comparons ce modèle à un LME 
+
+```{r}
+#| label: mod-lme-fish
+
+# Modèle 
+m_lme_fish <- lmer(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  data = data.analyse.fish.GLMM,
+  REML = FALSE
+)
+```
+
+```{r}
+#| label: fig-diag-lme-fish
+#| fig-cap: "Diagnostic du LME : homoscédasticité (gauche) et normalité des résidus (droite)"
+#| fig-width: 10
+#| fig-height: 5
+
+# Diagnostic
+par(mfrow = c(1, 2))
+plot(
+  fitted(m_lme_fish),
+  residuals(m_lme_fish),
+  xlab = "Valeurs prédites",
+  ylab = "Résidus",
+  main = "LME : homoscédasticité"
+)
+abline(h = 0, lty = 2)
+qqnorm(residuals(m_lme_fish), main = "LME : normalité")
+qqline(residuals(m_lme_fish))
+par(mfrow = c(1, 1))
+```
+
+```{r}
+#| label: tbl-aic-gamma-lme
+#| tbl-cap: "Comparaison AIC entre le GLMM Gamma et le LME"
+
+## Comparaison AIC
+AIC(m_gamma_fish, m_lme_fish)
+```
+
+Modèle gamma large favori (AIC = -104 vs AIC = -60)
+
+Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC
+Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
+attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
+
+###### Vérification différences d'effets entre area
+
+Modèle sans interaction area 
+
+```{r}
+#| label: mod-add-area
+
+m_add <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year + area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle avec interaction area 
+
+```{r}
+#| label: mod-int-area
+
+m_int <- glmmTMB(
+  fish_catch ~ (P_total + N_total + BOD_total + year) * area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-int-area
+
+summary(m_int)
+```
+
+Effet de BOD differe selon area : significatif pour North
+
+```{r}
+#| label: tbl-anova-add-int
+#| tbl-cap: "Comparaison des modèles avec et sans interaction area (anova)"
+
+# Comparaison 
+anova(m_add, m_int)
+```
+
+l'effet d'au moins une VA varie significativement selon l'area p = 0.029
+
+```{r}
+#| label: tbl-aic-add-int
+#| tbl-cap: "Comparaison AIC des modèles avec et sans interaction area"
+
+AIC(m_add, m_int)
+```
+
+Modèle avec interaction meilleur (AIC = -102 vs AIC = -105)
 
 # Discussion
 
