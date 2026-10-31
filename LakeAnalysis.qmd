@@ -19,16 +19,13 @@ editor:
 ---
 # Introduction
 
-L'eutrophisation des milieux aquatiques constitue une problématique majeure notament dans l'écosystème des lacs. Les apports excessifs en nutriments, tels que le phosphore et l'azote, ainsi que les charges de pollution organique mesurées par la demande biologique en oxygène (DBO), peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplancton et affecter les communautés de poissons.
+L'eutrophisation des milieux aquatiques constitue une problématique majeure notamment dans l'écosystème des lacs. Les apports excessifs en nutriments, tels que le phosphore et l'azote, ainsi que les charges de pollution organique mesurées par la demande biologique en oxygène (DBO), peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplancton et affecter les communautés de poissons.
 
 Afin de mieux comprendre ces relations, un suivi à long terme a été réalisé sur le lac Päijänne (Finlande). Ce suivi comprend des mesures annuelles d'apports en en phosphore (sources municipale, industrielle et autres), en azote (sources municipale, industrielle et autres), ainsi que de demande biologique en oxygène (municipale et industrielle). Des indicateurs biologiques ont également été relevés dans plusieurs sous-bassins répartis au sein de différentes zones géographiques du lac.
 
 Parmi les variables biologiques disponibles, trois indicateurs étaient initialement mesurés : la richesse phytoplanctonique (phyto_richness), la production primaire (prim_prod) et les captures de poissons (fish_catch). Cependant, la variable de production primaire n'étant disponible que de manière limitée dans le jeu de données, elle n'a pas été retenue dans la suite des analyses. Notre étude se concentre donc sur la richesse phytoplanctonique et les captures de poissons, considérées comme indicateurs des réponses biologiques aux variations des apports en nutriments.
 
-L'objectif de cette étude est d'identifier les facteurs environnementaux susceptibles d'influencer ces deux indicateurs biologiques. Plus précisément, nous chercherons à répondre aux questions suivantes :
-  - Comment les apports en nutriments et les charges de DBO influencent-ils la richesse phytoplanctonique ?
-  - Comment ces mêmes variables influencent-elles les captures de poissons ?
-  - Les relations observées diffèrent-elles selon les zones du lac ?
+L'objectif de cette étude est d'identifier les facteurs environnementaux susceptibles d'influencer ces deux indicateurs biologiques. Plus précisément, nous chercherons à savoir, quels sont les facteurs influençant la richesse phytoplanctonique et les captures de poissons dans un lac boréal ?
   
 Pour répondre à ces questions, nous analysons l'évolution spatiale et temporelle des variables environnementales ainsi que leurs relations avec les réponses biologiques observées.
 
