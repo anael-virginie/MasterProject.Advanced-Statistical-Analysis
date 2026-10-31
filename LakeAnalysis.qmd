@@ -1348,9 +1348,17 @@ tibble::tibble(
 ##### Tests de permutation exploratoires
 Nous avons choisi de ne pas réaliser les tests de permutation habituellement associés à la RDA partielle (test global, les tests par axe et les tests séquentiels et marginaux), en raison de la structure de nos données. Plusieurs sous-bassins partagent les mêmes valeurs environnementales pour une combinaison donnée d'année et de secteur (year × area), tandis que les observations successives peuvent présenter une autocorrélation temporelle. Nous limitons donc cette RDA partielle à une analyse exploratoire et descriptive, fondée sur le $R^2$ ajusté.
 
-##### Représentation de l'ordination partielle finale
+##### Conclusion et Représentation de l'ordination partielle finale
 
-Le biplot représente les relations entre les deux réponses biologiques et les **quatre** gradients environnementaux retenus, après retrait de la tendance temporelle linéaire et des différences moyennes entre sous-bassins. Son interprétation doit tenir compte de la faible fraction d'inertie expliquée et des limites des observations répétées.
+Le biplot représente les relations entre les deux réponses biologiques et les **quatre** gradients environnementaux retenus, après retrait de la tendance temporelle linéaire et des différences moyennes entre sous-bassins (@fig-prda-conjointe). Son interprétation doit tenir compte de la faible fraction d'inertie expliquée et des limites des observations répétées.
+
+L'observation du biplot de la RDA partielle suggère que :
+
+- `fish_catch` est principalement associé à `BOD_municipal`, les deux variables présentant une orientation similaire.
+- `phyto_richness` semble davantage associé aux apports d'origine industrielle, notamment `P_industrial` et `BOD_industrial`.
+- Les deux indicateurs biologiques présentent des orientations différentes, suggérant des relations distinctes avec les gradients environnementaux étudiés.
+
+Ces associations sont observées après conditionnement par l'année et le sous-bassin et ne permettent pas, à elles seules, de conclure à des effets causaux.
 
 ```{r}
 #| label: fig-prda-conjointe
