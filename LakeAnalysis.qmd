@@ -1213,9 +1213,51 @@ fviz_pca_ind(res.pca,
 La projection des observations sur les deux premiers axes de l'ACP met en évidence une séparation nette entre les zones Central Paijanne et Northen Paijanne (@fig-pca-individus). Cette différenciation est principalement portée par l'axe 2, associé notamment à N_municipal et P_other (@fig-pca-correlation).
 Ces résultats indiquent que la variable area constitue une source importante de variation environnementale et devra être prise en compte dans les analyses ultérieures.
 
+#### Analyses statistiques 
+Afin de tester statistiquement la séparation observée sur l'ACP, nous avons réalisé une analyse de variance multivariée par permutation (PERMANOVA) à partir des six variables environnementales retenues.
+```{r}
+#| label: test_permanova
+#| echo: false
+#| message: false
+#| warning: false
+data.pca <- data.nutriment.clean %>%
+  select(N_municipal,
+         P_municipal,
+         P_industrial,
+         P_other,
+         BOD_municipal,
+         BOD_industrial)
+  
+distance.euclidienne <- dist(scale(data.pca),
+                             method = "euclidean")
+
+set.seed(123)
+
+resultat.permanova <- vegan::adonis2(distance.euclidienne ~ area,
+                                     data = data.nutriment.clean,
+                                     permutations = 999)
+
+resultat.permanova
+```
+Les résultats indiquent une différence significative entre les zones Central Paijanne et Northen Paijanne (R² = 0,273 ; p = 0,001), suggérant que la variable area explique 27,3 % de la variabilité observée des apports en nutriments et de la demande biologique en oxygène.
+
+Afin de vérifier que cette différence ne résulte pas d'une dispersion différente des observations entre les groupes, un test de dispersion multivariée (PERMDISP) a été réalisé.
+```{r}
+#| label: test_PERMDISP
+#| echo: false
+#| message: false
+#| warning: false
+resultat.betadisper <- vegan::betadisper(distance.euclidienne,
+                                         data.nutriment.clean$area)
+
+anova(resultat.betadisper)
+```
+Ce test ne met pas en évidence de différence significative entre les dispersions des deux zones (F = 0,043 ; p = 0,836). 
+
+Les résultats de la PERMANOVA peuvent donc être interprétés comme reflétant une différence réelle de composition environnementale entre les deux secteurs étudiés.
 
 ## conclusion 
-Dans l'ensemble, l'ACP met en évidence deux gradients environnementaux principaux résumant près de 80 % de la variabilité des apports en nutriments. Elle révèle également une différenciation nette entre les zones Central Paijanne et Northen Paijanne, justifiant la prise en compte de la structure spatiale dans les analyses multivariées suivantes.
+Dans l'ensemble, l'ACP met en évidence deux gradients environnementaux principaux résumant 79,5 % de la variabilité des apports en nutriments et de la demande biologique en oxygène. Elle révèle également une différenciation nette entre les zones Central Paijanne et Northen Paijanne. Cette séparation visuelle est confirmée par la PERMANOVA, qui met en évidence une différence significative entre les deux zones (R² = 0,273 ; p = 0,001). Le test de PERMDISP n'étant pas significatif (p = 0,836), cette différence ne résulte pas d'une dispersion différente des observations entre les groupes, mais reflète bien une différence de composition environnementale. Ces résultats justifient ainsi la prise en compte de la structure spatiale dans les analyses multivariées suivantes.
 
 ### RDA
 
