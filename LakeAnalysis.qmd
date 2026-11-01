@@ -124,7 +124,7 @@ Comme montré dans @tabl-glimpse-data, nous avons donc deux data sets.
 `data.nutriment` comporte :
 
 - `year` : année d'observation.
-- `area` : secteur du lac.
+- `area` : zone du lac.
 - `P_municipal`, `P_industrial`, `P_other` : apports de phosphore par source (kg P/jour).
 - `N_municipal`, `N_industrial`, `N_other` : apports d'azote par source (t N/jour).
 - `BOD_municipal`, `BOD_industrial` : charge associée à la demande biologique en oxygène (t O₂/jour).
@@ -133,7 +133,7 @@ Comme montré dans @tabl-glimpse-data, nous avons donc deux data sets.
 
 - `year` : année d'observation.
 - `sub_basin` : sous-bassin étudié.
-- `area` : secteur du lac.
+- `area` : zone du lac.
 - `phyto_richness` : nombre de taxons phytoplanctoniques recensés (richesse).
 - `fish_catch` : captures de poissons (kg/filet maillant/jour).
 
@@ -242,9 +242,9 @@ qqline(data.biotic$fish_catch, col = "red", lwd = 2)
 ```
 Les trois valeurs extrêmes identifiées sont présentées dans le @tbl-extremes-fish. Afin de mieux comprendre leur origine, nous avons étudié leur répartition temporelle par sous-bassin (@fig-extremes-fish-1) et par zone géographique (@fig-extremes-fish-2).
 
-À l'échelle des sous-bassins, une valeur est difficile à évaluer en raison du manque de données pour les années voisines, tandis que les deux autres correspondent à des pics importants. À l'échelle des secteurs, ces observations se répartissent entre deux zones géographiques.
+À l'échelle des sous-bassins, une valeur est difficile à évaluer en raison du manque de données pour les années voisines, tandis que les deux autres correspondent à des pics importants. À l'échelle des zones, ces observations se répartissent entre deux zones géographiques.
 
-Nous avons choisi de conserver ces valeurs, car aucun élément ne permet de confirmer une erreur de mesure. Elles pourraient donc refléter une variabilité écologique réelle. Leur influence sera évaluée lors de la modélisation (*TAG PARTIE OU CELA EST RÉALISÉ) ⚠️⚠️⚠️⚠️⚠️⚠️*.
+Nous avons choisi de conserver ces valeurs, car aucun élément ne permet de confirmer une erreur de mesure. Elles pourraient donc refléter une variabilité écologique réelle. Leur influence sera évaluée lors de la modélisation (*A VOIR ICI TAG PARTIE OU CELA EST RÉALISÉ) ⚠️⚠️⚠️⚠️⚠️⚠️*.
 
 ```{r}
 #| label: tbl-extremes-fish
@@ -370,7 +370,7 @@ Nous avons examiné la distribution des huit variables explicatives quantitative
 
 À partir de ces graphiques (@fig-distribution-nutriments), nous pouvons déjà remarquer la présence de valeurs extrêmes pour certaines variables, notamment `r paste(resume.extremes$variable[resume.extremes$n_extremes > 0], collapse = ", ")`. Nous observons également une diversité de distributions, dont la majorité semble s'écarter d'une distribution normale.
 
-En examinant l'évolution temporelle de ces valeurs selon les différents secteurs géographiques (`area`), nous constatons que certaines correspondent aux premières mesures disponibles, tandis que d'autres se répètent au cours du temps (@fig-extremes-nutriments). Ces observations ne semblent donc pas nécessairement aberrantes. En l'absence d'erreurs de mesure identifiées, nous avons décidé de les conserver pour la suite des analyses.
+En examinant l'évolution temporelle de ces valeurs selon les différents zones géographiques (`area`), nous constatons que certaines correspondent aux premières mesures disponibles, tandis que d'autres se répètent au cours du temps (@fig-extremes-nutriments). Ces observations ne semblent donc pas nécessairement aberrantes. En l'absence d'erreurs de mesure identifiées, nous avons décidé de les conserver pour la suite des analyses.
 
 ```{r}
 #| label: fig-distribution-nutriments
@@ -432,8 +432,9 @@ data.nutriment %>%
 ### Analyser la relation potentielle entre Y et les X
 Afin d'identifier les facteurs susceptibles d'influencer la richesse phytoplanctonique et les captures de poissons, nous examinons leurs relations avec les variables géographiques (`area`, `sub_basin`) et les apports en nutriments. Cette analyse exploratoire permet de mettre en évidence d'éventuelles associations et différences spatiales, sans présumer de leur significativité statistique.
 
-#### Variabilité spatiale des réponses biologiques
-Nous examinons d'abord la variabilité des réponses biologiques selon les secteurs géographiques (`area`) et les sous-bassins (`sub_basin`). Cette étape permet de déterminer si certaines zones présentent des valeurs généralement plus élevées ou plus faibles que d'autres.
+#### Variable explicative
+##### variabilité spatiale
+Nous examinons d'abord la variabilité des réponses biologiques selon les zones géographiques (`area`) et les sous-bassins (`sub_basin`). Cette étape permet de déterminer si certaines zones présentent des valeurs généralement plus élevées ou plus faibles que d'autres.
 
 Ces différences spatiales sont importantes à prendre en compte, car elles pourraient influencer les relations observées entre les apports en nutriments et les réponses biologiques. Elles permettent également d'orienter le choix des effets fixes et aléatoires dans les futurs modèles mixtes.
 
@@ -473,56 +474,9 @@ for (variable in c("sub_basin", "area")) {
   )
 }
 ```
-#### Relations entre les réponses biologiques et les apports en nutriments
-Nous examinons ensuite les relations entre les deux variables réponses et les huit variables quantitatives correspondant aux apports de phosphore, d'azote et à la demande biologique en oxygène.
 
-L'objectif est de repérer d'éventuelles associations positives, négatives ou non linéaires entre les apports et les indicateurs biologiques.
-
-Les observations sont distinguées selon `area` afin de vérifier si les relations semblent similaires dans les deux secteurs. Cette distinction est importante, car une association observée à l'échelle du lac pourrait masquer des différences entre secteurs.
-
-La @fig-relations-nutriments-area suggère que les relations entre les apports en nutriments et les réponses biologiques varient selon les secteurs géographiques. Premieremenet concernant la richesse phytoplanctonique, nous observons une tendance globalement négative avec plusieurs apports en nutriments, notamment ceux de phosphore et la demande biologique en oxygène (BOD). Secondement, pour les captures de poissons, les tendances sont moins homogènes et peuvent différer entre les deux secteurs. Ces résultats suggèrent de possibles différences spatiales dans les relations étudiées, qui devront être vérifiées lors de la modélisation statistique.
-
-```{r}
-#| label: fig-relations-nutriments-area
-#| fig-cap: "Relations entre les réponses biologiques et les apports en nutriments selon le secteur"
-#| fig-width: 15
-#| fig-height: 9
-#| echo: false
-#| message: false
-#| warning: false
-#| output: true
-
-data.analyse.relations <- data.biotic %>%
-  left_join(
-    data.nutriment,
-    by = c("year", "area"),
-    relationship = "many-to-one"
-  )
-
-data.analyse.relations %>%
-  pivot_longer(c(phyto_richness, fish_catch),
-               names_to = "indicateur", values_to = "reponse") %>%
-  pivot_longer(all_of(variables.nutriments),
-               names_to = "nutriment", values_to = "apport") %>%
-  ggplot(aes(x = apport, y = reponse, color = area)) +
-  geom_point(alpha = 0.6, na.rm = TRUE) +
-  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, na.rm = TRUE) +
-  facet_grid(indicateur ~ nutriment, scales = "free") +
-  scale_color_manual(values = c(
-    "Central Paijanne" = col.central,
-    "Northen Paijanne" = col.nothen
-  )) +
-  labs(
-    x = "Apports en nutriments",
-    y = "Valeur observée",
-    color = "Secteur"
-  ) +
-  theme_minimal()
-
-rm(data.analyse.relations)
-```
-#### Évolution temporelle des réponses biologiques
-Enfin, nous étudions l'évolution temporelle de la richesse phytoplanctonique et des captures de poissons (@fig-reponses-temporelles) afin d'identifier d'éventuelles tendances pouvant influencer les relations entre les apports en nutriments et les réponses biologiques.
+##### variabilité temporelle
+Nous étudions l'évolution temporelle de la richesse phytoplanctonique et des captures de poissons (@fig-reponses-temporelles) afin d'identifier d'éventuelles tendances pouvant influencer les relations entre les apports en nutriments et les réponses biologiques.
 
 Nous observons une tendance générale à l'augmentation de la richesse phytoplanctonique au cours du temps, malgré des fluctuations entre les sous-bassins. En revanche, l'évolution des captures de poissons est moins évidente, avec des fluctuations importantes et plusieurs périodes sans données disponibles, ne permettant pas de dégager une tendance générale claire.
 
@@ -581,6 +535,225 @@ data.spatial %>%
   theme_minimal()
 ```
 
+#### Variable explicatives
+##### Variabilité spatiale
+A simple vue nous pouvons dire qu'il a des différences entre les deux zones géographiques (@fig-nutriments-spatiales-new), particulièrement pour `P_other`, `N_other` et `N_municipal`, dont les valeurs sont généralement plus élevées dans *Northen Paijanne*. Les apports de `P_municipal` et `P_industrial` y présentent également une dispersion plus importante. En revanche, les distributions de `BOD_industrial` et `BOD_municipal` se chevauchent davantage entre les deux zones. Ces observations restent descriptives et devront être confirmées par des analyses statistiques..^[Par exemple, un test de Wilcoxon pour données appariées, comparant les deux zones pour les mêmes années, sous réserve de l'indépendance des différences entre années. En présence d'autocorrélation temporelle, une méthode tenant compte de cette dépendance serait nécessaire.]
+
+```{r}
+#| label: fig-nutriments-spatiales-new
+#| fig-cap: "Variabilité spatiale des apports environnementaux selon la zone géographique"
+#| fig-width: 12
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+data.nutriment %>%
+  pivot_longer(
+    all_of(variables.nutriments),
+    names_to = "nutriment",
+    values_to = "apport"
+  ) %>%
+  ggplot(aes(x = area, y = apport, fill = area)) +
+  geom_boxplot(na.rm = TRUE) +
+  facet_wrap(~nutriment, scales = "free_y", ncol = 4) +
+  scale_fill_manual(values = c(
+    "Central Paijanne" = col.central,
+    "Northen Paijanne" = col.nothen
+  )) +
+  labs(
+    x = "Zone géographique",
+    y = "Apport observé"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+##### Variabilité temporelle
+Nous étudions ensuite l'évolution des apports environnementaux (@fig-nutriments-temporelles-new). Ces séries temporelles révèle des tendances similaires entre zones géographiques comme pour le `P_other` et `N_other` mais avec des taux distincts, et des tendances complètement différentes comme `N_municipal` ou `N_industrial`.
+
+```{r}
+#| label: fig-nutriments-temporelles-new
+#| fig-cap: "Évolution temporelle des apports environnementaux selon la zone géographique"
+#| fig-width: 13
+#| fig-height: 12
+#| echo: false
+#| message: false
+#| warning: false
+
+data.nutriment %>%
+  pivot_longer(
+    all_of(variables.nutriments),
+    names_to = "nutriment",
+    values_to = "apport"
+  ) %>%
+  ggplot(aes(x = year, y = apport, color = area, group = area)) +
+  geom_line(na.rm = TRUE) +
+  geom_point(size = 1.2, na.rm = TRUE) +
+  facet_wrap(~nutriment, scales = "free_y", ncol = 2) +
+  scale_color_manual(values = c(
+    "Central Paijanne" = col.central,
+    "Northen Paijanne" = col.nothen
+  )) +
+  labs(
+    x = "Année",
+    y = "Apport observé",
+    color = "Zone géographique"
+  ) +
+  theme_minimal()
+```
+
+#### Variables réponses et variable explicatives
+Nous examinons ensuite les relations entre les deux variables réponses et les huit variables explicatives.
+
+L'objectif est de repérer d'éventuelles associations positives, négatives ou non linéaires entre les apports et les indicateurs biologiques.
+
+Les observations sont distinguées selon `area` afin de vérifier si les relations semblent similaires dans les deux zones. Cette distinction est importante, car une association observée à l'échelle du lac pourrait masquer des différences entre zones.
+
+##### Variabilité géographique
+La @fig-relations-nutriments-area suggère que les relations entre les apports en nutriments et les réponses biologiques varient selon les zones géographiques.
+
+Nous observons que: 
+
+* Captures de poissons (`fish_catch`) : les associations apparaissent moins marquées et plus hétérogènes, avec des différences de tendance entre les zones.
+* Richesse phytoplanctonique (`phyto_richness`) : des tendances généralement négatives sont observées nottament avec le phosphate mais aussi BOD (`P_municipal`, `P_industrial`, `BOD_municipal` et `BOD_industrial`).
+* Différences géographiques : certaines relations semblent varier selon la zone, notamment pour `N_municipal`, dont les tendances présentent des directions opposées entre Central Paijanne et Northen Paijanne.
+
+Cependant,  pourraient être influencées par des valeurs extrêmes ou par l'évolution temporelle des variables. Cela reste descriptive.
+
+```{r}
+#| label: fig-relations-nutriments-area
+#| fig-cap: "Relations entre les réponses biologiques et les apports en nutriments selon le zone"
+#| fig-width: 15
+#| fig-height: 9
+#| echo: false
+#| message: false
+#| warning: false
+#| output: true
+
+data.analyse.relations <- data.biotic %>%
+  left_join(
+    data.nutriment,
+    by = c("year", "area"),
+    relationship = "many-to-one"
+  )
+
+data.analyse.relations %>%
+  pivot_longer(c(phyto_richness, fish_catch),
+               names_to = "indicateur", values_to = "reponse") %>%
+  pivot_longer(all_of(variables.nutriments),
+               names_to = "nutriment", values_to = "apport") %>%
+  ggplot(aes(x = apport, y = reponse, color = area)) +
+  geom_point(alpha = 0.6, na.rm = TRUE) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, na.rm = TRUE) +
+  facet_grid(indicateur ~ nutriment, scales = "free") +
+  scale_color_manual(values = c(
+    "Central Paijanne" = col.central,
+    "Northen Paijanne" = col.nothen
+  )) +
+  labs(
+    x = "Apports en nutriments",
+    y = "Valeur observée",
+    color = "zone"
+  ) +
+  theme_minimal()
+
+rm(data.analyse.relations)
+```
+##### Variabilité temporelle
+Afin de compléter l'analyse des relations entre les variables réponses et explicatives, nous examinons leur évolution temporelle conjointe selon les deux zones géographiques (@fig-relations-temporelles-nutriments). Les valeurs sont standardisées afin de rendre comparables les tendances des indicateurs biologiques et des apports environnementaux, malgré leurs unités différentes.
+
+Cette analyse a simple vue ne révèle pas de relation générale clairement identifiable (@fig-relations-temporelles-nutriments) . Certaines concordances ponctuelles peuvent être observées, notamment entre les apports associés à la `BOD` et les `fish_catch`, ainsi qu'entre `N_other` et la `phyto_richness.` Toutefois, ces rapprochements visuels ne sont ni systématiques ni suffisamment nets pour suggérer une association robuste. Une analyse statistique tenant compte des dimensions spatiale et temporelle sera donc nécessaire pour évaluer ces relations.
+
+```{r}
+#| label: fig-relations-temporelles-nutriments
+#| fig-cap: "Évolution temporelle conjointe des réponses biologiques et des apports environnementaux selon la zone géographique. Axe X : année | axe Y : valeurs standardisées."
+#| fig-width: 15
+#| fig-height: 11
+#| echo: false
+#| message: false
+#| warning: false
+
+data.biotic %>%
+  group_by(year, area) %>%
+  summarise(
+    phyto_richness = mean(phyto_richness, na.rm = TRUE),
+    fish_catch = if (all(is.na(fish_catch))) NA_real_
+                 else mean(fish_catch, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    data.nutriment,
+    by = c("year", "area"),
+    relationship = "one-to-one"
+  ) %>%
+  pivot_longer(
+    c(phyto_richness, fish_catch),
+    names_to = "reponse",
+    values_to = "valeur_biotique"
+  ) %>%
+  pivot_longer(
+    all_of(variables.nutriments),
+    names_to = "nutriment",
+    values_to = "valeur_nutriment"
+  ) %>%
+  group_by(reponse, nutriment, area) %>%
+  mutate(
+    biotique_standardisee = as.numeric(scale(valeur_biotique)),
+    nutriment_standardise = as.numeric(scale(valeur_nutriment))
+  ) %>%
+  ungroup() %>%
+  select(
+    year, area, reponse, nutriment,
+    biotique_standardisee, nutriment_standardise
+  ) %>%
+  pivot_longer(
+    c(biotique_standardisee, nutriment_standardise),
+    names_to = "type",
+    values_to = "valeur"
+  ) %>%
+  mutate(
+    type_legende = case_when(
+      type == "biotique_standardisee" & reponse == "phyto_richness" ~ "phyto_richness",
+      type == "biotique_standardisee" & reponse == "fish_catch" ~ "fish_catch",
+      type == "nutriment_standardise" ~ "nutriment"
+    )
+  ) %>%
+  ggplot(aes(x = year, y = valeur, color = type_legende, group = type)) +
+  geom_line(na.rm = TRUE) +
+  geom_point(size = 0.8, na.rm = TRUE) +
+  facet_grid(
+    rows = vars(reponse, area),
+    cols = vars(nutriment)
+  ) +
+  scale_color_manual(
+    values = c(
+      "phyto_richness" = col.phyto,
+      "fish_catch" = col.fish,
+      "nutriment" = col.nutriments
+    ),
+    labels = c(
+      "phyto_richness" = "Richesse phytoplanctonique",
+      "fish_catch" = "Captures de poissons",
+      "nutriment" = "Apport environnemental"
+    )
+  ) +
+  labs(
+    x = "Année",
+    y = "Valeur standardisée",
+    color = "Variable"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 8)
+  )
+```
+
 ## Valeurs manquantes
 Au début de la visualisation de notre jeu de données nous avons pu remarquer qu'il y en avait des valeurs manquantes (@sec-stats-dscrip-general). Ce fait est important, car ces valeurs manquantes pourrait avoir un impacte sur notre analyse de données et limiter la représentativité des analyses.
 
@@ -592,11 +765,8 @@ Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs man
 
 Noius pouvons voir que de nos variables explicatives les variabels les plus concernés sont `N_other` `N_municipal` et `N_industrial`.
 
-En cas de concerver ces variables après analyse de corrélation, des méthodes d'imputations existent comme celles proposées dans le package `missMDA` (Josse & Husson, 2016). *ICI.A.VOIR ⚠️*
+En cas de concerver ces variables après analyse de corrélation, des méthodes d'imputations existent comme celles proposées dans le package `missMDA` (Josse & Husson, 2016).
 
-::: {.columns}
-
-::: {.column width="45%"}
 
 ```{r}
 #| label: tbl-valeurs-manquantes
@@ -610,6 +780,7 @@ miss_var_summary(data.nutriment) %>%
   knitr::kable(caption = "Nutriments")
 
 ```
+
 
 ```{r}
 #| label: fig-valeurs-manquantes
@@ -627,14 +798,10 @@ miss_var_summary(data.nutriment) %>%
 
 gg_miss_var(
   data.nutriment,
-  show_pct = TRUE
-) +
+  show_pct = TRUE) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
 ```
 
-:::
-
-:::
 
 
 #### Variable réponse
@@ -669,17 +836,16 @@ manquantes.area <- data.biotic %>%
   )
 ```
 
-Concernant nos variables réponses (@fig-manquantes-temps), nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations (@tbl-valeurs-manquantes-biotic). Ces valeurs manquantes concernent notamment `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-valeurs-manquantes-biotic).
+Concernant nos variables réponses, nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations (@tbl-valeurs-manquantes-biotic). 
+
 
 À l'échelle des zones géographiques (`area`), les valeurs manquantes représentent `r paste0(manquantes.area$pct, " % des observations de ", manquantes.area$area, collapse = " et ")` (@fig-manquantes-temps-biotic). Répartition relativement similaire entre les deux. 
+À l'échelle des sous-basin cela correspond a : `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-manquantes-temps-biotic).
+ 
+Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. 
 
-Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. *ICI.A.VOIR IMPORTANT POUR GLM ⚠️*
+Pour affronter cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`. 
 
-Pour affronter cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`.  *ICI.A.VOIR ⚠️*
-
-::: {.columns}
-
-::: {.column width="45%"}
 
 ```{r}
 #| label: tbl-valeurs-manquantes-biotic
@@ -690,7 +856,9 @@ Pour affronter cette limite, des méthodes d'imputation existent, notamment cell
 #| output: true
 
 
-miss_var_summary(data.biotic) %>%
+data.biotic %>%
+  select(!c(year, area, sub_basin)) %>%
+  miss_var_summary() %>%
   knitr::kable(caption = "Variables biotiques")
 ```
 
@@ -700,30 +868,19 @@ miss_var_summary(data.biotic) %>%
 #| fig-subcap:
 #|   - "Données biotiques"
 #|   - "Apports en nutriments"
-#| layout-ncol: 2
-#| fig-width: 7
-#| fig-height: 5
+#| layout-ncol: 1
 #| echo: false
 #| message: false
 #| warning: false
 #| output: true
 
 gg_miss_var(
-  data.biotic,
-  show_pct = TRUE
-) +
-  labs(x = "Variable", y = "Nombre de valeurs manquantes")
-
-gg_miss_var(
-  data.nutriment,
+  data.biotic %>% select(!c(year, area, sub_basin)),
   show_pct = TRUE
 ) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
 ```
 
-:::
-
-:::
 
 ```{r}
 #| label: fig-manquantes-temps-biotic
@@ -826,7 +983,7 @@ resultat.correlation <- Hmisc::rcorr(
               select(all_of(variables.nutriments))),type = "spearman")
 ```
 
-Pour cela nous examinons le coefficients de corrélation de Pearson (@fig-correlation-nutriments), retenons un seuil de |r|>0,6 et p<0,05 pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
+Pour cela nous examinons le coefficients de corrélation de Spearman (@fig-correlation-nutriments), retenons un seuil de *|r|>0,6* et *p<0,05* pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
 ```{r}
 #| echo: false
 #| results: asis
@@ -863,11 +1020,12 @@ Nous conservons également, à ce stade, `BOD_municipal` et `BOD_industrial`, ca
 Ainsi, les cinq variables explicatives restantes (`N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal` et `BOD_industrial`) sont maintenues comme prédicteurs candidats. Une vérification complémentaire de la multicolinéarité sera réalisée lors de la construction des modèles, notamment à l'aide du facteur d'inflation de la variance (VIF) (@sec-glm), afin de déterminer quelles combinaisons de variables peuvent être retenues.
 
 ```{r}
-#| label: fig-correlation-nutriments
-#| fig-cap: "Corrélations de Pearson entre les apports en nutriments et leur significativité statistique"
+#| label: fig-correlation-nutriments-exemple
+#| fig-cap: "Corrélations de Spearman entre les apports en nutriments et leur significativité statistique"
 #| fig-width: 9
 #| fig-height: 8
 #| echo: false
+#| eval: false      # NO EXECUTION
 #| message: false
 #| warning: false
 
@@ -886,12 +1044,60 @@ corrplot::corrplot(
   tl.cex = 0.8
 )
 ```
+
+```{r}
+#| label: fig-correlation-nutriments
+#| fig-cap: "Corrélations de Spearman entre les apports en nutriments et leur significativité statistique"
+#| fig-width: 9
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+# 1. Copier les matrices pour modifier les noms des axes
+mat_r <- resultat.correlation$r
+mat_p <- resultat.correlation$P
+
+# 2. Définir les variables exclues et conservées
+variables_exclues <- c("N_industrial", "N_other")
+variables_conservees <- c("N_municipal", "P_municipal", "P_industrial", "P_other", "BOD_municipal", "BOD_industrial")
+
+# 3. Mettre à jour les noms des variables dans la matrice
+nouveaux_noms <- sapply(colnames(mat_r), function(var) {
+  if (var %in% variables_exclues) {
+    paste0("❌ ", var)
+  } else if (var %in% variables_conservees) {
+    paste0("✓ ", var)
+  } else {
+    var
+  }
+})
+
+colnames(mat_r) <- rownames(mat_r) <- nouveaux_noms
+colnames(mat_p) <- rownames(mat_p) <- nouveaux_noms
+
+# 4. Représentation graphique
+corrplot::corrplot(
+  mat_r,
+  method = "square",
+  type = "upper",
+  diag = FALSE,
+  p.mat = mat_p,
+  sig.level = c(0.001, 0.01, 0.05),
+  insig = "label_sig",
+  pch.cex = 0.9,
+  pch.col = "black",
+  tl.col = "black",
+  tl.cex = 0.8
+)
+```
+
 ## Imputation avec `missMDA`
 Pour affranchir notre jeux de donn'ees incomplet pour les variabels retenus `N_municipal` et `BOD_municipal` nous avons d'ecide de realiser un analyse d'imputations.
 
 L'analyse de stabilité des imputations multiples suggère une variabilité et une incertitude relativement limitées dans la représentation des individus et des variables dans le plan factoriel, avec des ellipses de confiance peu étendues (@fig-imputation-complete-1) et une dispersion relativement faible (@fig-imputation-complete-2). 
 
-Malgré ces résultats favorables, nous choisissons, dans un premier temps, de poursuivre les analyses à partir des données originales, sans utiliser les valeurs imputées. Cette approche permet de limiter les hypothèses supplémentaires liées à l'imputation et de privilégier les observations effectivement mesurées, tout en tenant compte de la réduction du nombre d'observations disponibles. *VOIR ICI ⚠️⚠️⚠️⚠️* 
+Malgré ces résultats favorables, nous choisissons, dans un premier temps, de poursuivre les analyses à partir des données originales, sans utiliser les valeurs imputées. Cette approche permet de limiter les hypothèses supplémentaires liées à l'imputation et de privilégier les observations effectivement mesurées, tout en tenant compte de la réduction du nombre d'observations disponibles.
 
 ```{r imputation-nutriments}
 #| echo: false
@@ -946,7 +1152,7 @@ data.nutriment.impute[variables.nutriments] <-
 #|   - "Stabilité de la représentation des nutriments après imputation multiple"
 #| fig-width: 8
 #| fig-height: 7
-#| layout-ncol: 1
+#| layout-ncol: 2
 #| results: 'hide'
 #| echo: false
 #| message: false
@@ -991,9 +1197,61 @@ missMDA::Overimpute(
   plotvars = which(names(X.nutriments) == "BOD_municipal")
 )
 ```
+## Conclusion de l'analyse exploratoire  
+L’analyse exploratoire montre que la richesse phytoplanctonique et les captures de poissons varient selon l’espace et le temps, avec des valeurs manquantes et des corrélations entre apports en nutriments qui ont guidé la sélection de six variables explicatives candidates, à tester par modélisation en tenant compte de cette possible structure spatio-temporelle.
+
+<details>
+<summary><b>Click ici pour voir les détails</b></summary>
+
+**Données**
+
+* Deux jeux de données : nutriments (`r nrow(data.nutriment)` observations) et variables biotiques (`r nrow(data.biotic)` observations).
+* Deux variables réponses : richesse phytoplanctonique (`phyto_richness`) et captures de poissons (`fish_catch`).
+* Huit variables explicatives : apports de phosphore, d’azote et de BOD, selon leur origine.
+
+**Variables réponses**
+
+* `phyto_richness` : aucune valeur extrême, distribution proche de la normale.
+* `fish_catch` : trois valeurs extrêmes, distribution non normale.
+* Valeurs extrêmes conservées : aucune erreur de mesure identifiée, elles peuvent refléter une variabilité écologique réelle.
+* Leur influence sera évaluée lors de la modélisation.
+
+**Variables explicatives**
+
+* Valeurs extrêmes présentes pour plusieurs nutriments, souvent en début de série ou répétées dans le temps.
+* Distributions majoritairement non normales (sans conséquence pour les modèles).
+* Valeurs conservées pour la suite.
+
+**Structure spatiale et temporelle**
+
+* Les réponses varient selon le zone (`area`) et le sous-bassin (`sub_basin`).
+* La richesse phytoplanctonique tend à augmenter dans le temps.
+* Les captures de poissons ne montrent pas de tendance claire.
+* La dimension spatio-temporelle devra donc être prise en compte.
+
+**Relations réponses–nutriments**
+
+* Richesse phytoplanctonique : tendance négative avec plusieurs apports, surtout le phosphore et le BOD.
+* Captures de poissons : tendances hétérogènes, différentes selon le zone.
+* Ces résultats sont exploratoires et restent à confirmer par modélisation.
+
+**Valeurs manquantes**
+
+* Variables d’azote : 17,7 % de valeurs manquantes chacune.
+* `fish_catch`: répartition de façon inégale entre sous-bassins.
+* Pas d’imputation pour `fish_catch`, trop incertaine : on analyse les observations disponibles, avec prudence.
+
+**Colinéarité**
+
+* Variables non normales (Shapiro-Wilk), donc corrélation de Spearman (seuil |r| > 0,6 et p < 0,05).
+* `N_industrial` et `N_other` exclues, représentées par `P_industrial` et `P_other.`
+Variables candidates : `N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal`, `BOD_industrial.`
+* Corrélations résiduelles : `P_municipal`–`P_industrial`, `P_municipal`–`BOD_municipal`, `P_industrial`–`BOD_municipal` et `BOD_municipal`–`BOD_industrial.`
+* Ces corrélations peuvent traduire des sources de pollution communes.
+* Vérification complémentaire par le VIF lors de la modélisation.
+</details>
 
 ## Rapprochement des jeux de données
- *ICI.A.VOIR ⚠️*
 
 Afin d'évaluer l'influence du traitement des valeurs manquantes sur nos résultats, nous constituons deux versions des données : une première conservant les valeurs originales, sans imputation, et une seconde utilisant les valeurs imputées par ACP régularisée (`data.analyse.impute`).
 
@@ -1070,6 +1328,7 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 ### RDA
 
 # Partie Phytoplankton
+
 
 ## GLM / GLMM de la richesse phytoplanctonique {#sec-glm}
 
@@ -1798,6 +2057,7 @@ Une limite à garder en tête est que les apports sont mesurés par secteur et p
 
 
 # Partie Poisson
+
 
 
 # Discussion
