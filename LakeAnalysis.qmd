@@ -588,11 +588,8 @@ Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs man
 
 Noius pouvons voir que de nos variables explicatives les variabels les plus concernés sont `N_other` `N_municipal` et `N_industrial`.
 
-En cas de concerver ces variables après analyse de corrélation, des méthodes d'imputations existent comme celles proposées dans le package `missMDA` (Josse & Husson, 2016). *ICI.A.VOIR ⚠️*
+En cas de concerver ces variables après analyse de corrélation, des méthodes d'imputations existent comme celles proposées dans le package `missMDA` (Josse & Husson, 2016).
 
-::: {.columns}
-
-::: {.column width="45%"}
 
 ```{r}
 #| label: tbl-valeurs-manquantes
@@ -606,6 +603,7 @@ miss_var_summary(data.nutriment) %>%
   knitr::kable(caption = "Nutriments")
 
 ```
+
 
 ```{r}
 #| label: fig-valeurs-manquantes
@@ -623,14 +621,10 @@ miss_var_summary(data.nutriment) %>%
 
 gg_miss_var(
   data.nutriment,
-  show_pct = TRUE
-) +
+  show_pct = TRUE) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
 ```
 
-:::
-
-:::
 
 
 #### Variable réponse
@@ -665,17 +659,16 @@ manquantes.area <- data.biotic %>%
   )
 ```
 
-Concernant nos variables réponses (@fig-manquantes-temps), nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations (@tbl-valeurs-manquantes-biotic). Ces valeurs manquantes concernent notamment `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-valeurs-manquantes-biotic).
+Concernant nos variables réponses, nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations (@tbl-valeurs-manquantes-biotic). 
+
 
 À l'échelle des zones géographiques (`area`), les valeurs manquantes représentent `r paste0(manquantes.area$pct, " % des observations de ", manquantes.area$area, collapse = " et ")` (@fig-manquantes-temps-biotic). Répartition relativement similaire entre les deux. 
+À l'échelle des sous-basin cela correspond a : `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-manquantes-temps-biotic).
+ 
+Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. 
 
-Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. *ICI.A.VOIR IMPORTANT POUR GLM ⚠️*
+Pour affronter cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`. 
 
-Pour affronter cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`.  *ICI.A.VOIR ⚠️*
-
-::: {.columns}
-
-::: {.column width="45%"}
 
 ```{r}
 #| label: tbl-valeurs-manquantes-biotic
@@ -686,7 +679,9 @@ Pour affronter cette limite, des méthodes d'imputation existent, notamment cell
 #| output: true
 
 
-miss_var_summary(data.biotic) %>%
+data.biotic %>%
+  select(!c(year, area, sub_basin)) %>%
+  miss_var_summary() %>%
   knitr::kable(caption = "Variables biotiques")
 ```
 
@@ -697,29 +692,24 @@ miss_var_summary(data.biotic) %>%
 #|   - "Données biotiques"
 #|   - "Apports en nutriments"
 #| layout-ncol: 2
-#| fig-width: 7
-#| fig-height: 5
 #| echo: false
 #| message: false
 #| warning: false
 #| output: true
 
 gg_miss_var(
-  data.biotic,
+  data.biotic %>% select(!c(year, area, sub_basin)),
   show_pct = TRUE
 ) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
 
 gg_miss_var(
-  data.nutriment,
+  data.nutriment %>% select(!c(year, area)),
   show_pct = TRUE
 ) +
   labs(x = "Variable", y = "Nombre de valeurs manquantes")
 ```
 
-:::
-
-:::
 
 ```{r}
 #| label: fig-manquantes-temps-biotic
@@ -822,7 +812,7 @@ resultat.correlation <- Hmisc::rcorr(
               select(all_of(variables.nutriments))),type = "spearman")
 ```
 
-Pour cela nous examinons le coefficients de corrélation de Pearson (@fig-correlation-nutriments), retenons un seuil de |r|>0,6 et p<0,05 pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
+Pour cela nous examinons le coefficients de corrélation de Spearman (@fig-correlation-nutriments), retenons un seuil de *|r|>0,6* et *p<0,05* pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
 ```{r}
 #| echo: false
 #| results: asis
@@ -859,11 +849,12 @@ Nous conservons également, à ce stade, `BOD_municipal` et `BOD_industrial`, ca
 Ainsi, les cinq variables explicatives restantes (`N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal` et `BOD_industrial`) sont maintenues comme prédicteurs candidats. Une vérification complémentaire de la multicolinéarité sera réalisée lors de la construction des modèles, notamment à l'aide du facteur d'inflation de la variance (VIF) (@sec-glm), afin de déterminer quelles combinaisons de variables peuvent être retenues.
 
 ```{r}
-#| label: fig-correlation-nutriments
-#| fig-cap: "Corrélations de Pearson entre les apports en nutriments et leur significativité statistique"
+#| label: fig-correlation-nutriments-exemple
+#| fig-cap: "Corrélations de Spearman entre les apports en nutriments et leur significativité statistique"
 #| fig-width: 9
 #| fig-height: 8
 #| echo: false
+#| eval: false      # NO EXECUTION
 #| message: false
 #| warning: false
 
@@ -882,12 +873,60 @@ corrplot::corrplot(
   tl.cex = 0.8
 )
 ```
+
+```{r}
+#| label: fig-correlation-nutriments
+#| fig-cap: "Corrélations de Spearman entre les apports en nutriments et leur significativité statistique"
+#| fig-width: 9
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+# 1. Copier les matrices pour modifier les noms des axes
+mat_r <- resultat.correlation$r
+mat_p <- resultat.correlation$P
+
+# 2. Définir les variables exclues et conservées
+variables_exclues <- c("N_industrial", "N_other")
+variables_conservees <- c("N_municipal", "P_municipal", "P_industrial", "P_other", "BOD_municipal", "BOD_industrial")
+
+# 3. Mettre à jour les noms des variables dans la matrice
+nouveaux_noms <- sapply(colnames(mat_r), function(var) {
+  if (var %in% variables_exclues) {
+    paste0("❌ ", var)
+  } else if (var %in% variables_conservees) {
+    paste0("✓ ", var)
+  } else {
+    var
+  }
+})
+
+colnames(mat_r) <- rownames(mat_r) <- nouveaux_noms
+colnames(mat_p) <- rownames(mat_p) <- nouveaux_noms
+
+# 4. Représentation graphique
+corrplot::corrplot(
+  mat_r,
+  method = "square",
+  type = "upper",
+  diag = FALSE,
+  p.mat = mat_p,
+  sig.level = c(0.001, 0.01, 0.05),
+  insig = "label_sig",
+  pch.cex = 0.9,
+  pch.col = "black",
+  tl.col = "black",
+  tl.cex = 0.8
+)
+```
+
 ## Imputation avec `missMDA`
 Pour affranchir notre jeux de donn'ees incomplet pour les variabels retenus `N_municipal` et `BOD_municipal` nous avons d'ecide de realiser un analyse d'imputations.
 
 L'analyse de stabilité des imputations multiples suggère une variabilité et une incertitude relativement limitées dans la représentation des individus et des variables dans le plan factoriel, avec des ellipses de confiance peu étendues (@fig-imputation-complete-1) et une dispersion relativement faible (@fig-imputation-complete-2). 
 
-Malgré ces résultats favorables, nous choisissons, dans un premier temps, de poursuivre les analyses à partir des données originales, sans utiliser les valeurs imputées. Cette approche permet de limiter les hypothèses supplémentaires liées à l'imputation et de privilégier les observations effectivement mesurées, tout en tenant compte de la réduction du nombre d'observations disponibles. *VOIR ICI ⚠️⚠️⚠️⚠️* 
+Malgré ces résultats favorables, nous choisissons, dans un premier temps, de poursuivre les analyses à partir des données originales, sans utiliser les valeurs imputées. Cette approche permet de limiter les hypothèses supplémentaires liées à l'imputation et de privilégier les observations effectivement mesurées, tout en tenant compte de la réduction du nombre d'observations disponibles.
 
 ```{r imputation-nutriments}
 #| echo: false
@@ -942,7 +981,7 @@ data.nutriment.impute[variables.nutriments] <-
 #|   - "Stabilité de la représentation des nutriments après imputation multiple"
 #| fig-width: 8
 #| fig-height: 7
-#| layout-ncol: 1
+#| layout-ncol: 2
 #| results: 'hide'
 #| echo: false
 #| message: false
@@ -989,7 +1028,6 @@ missMDA::Overimpute(
 ```
 
 ## Rapprochement des jeux de données
- *ICI.A.VOIR ⚠️*
 
 Afin d'évaluer l'influence du traitement des valeurs manquantes sur nos résultats, nous constituons deux versions des données : une première conservant les valeurs originales, sans imputation, et une seconde utilisant les valeurs imputées par ACP régularisée (`data.analyse.impute`).
 
@@ -1066,7 +1104,7 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 ### RDA
 
 
-## GLM / GLMM etc..
+## GLM / GLMM etc.. {#sec-glm}
 
 
 # Discussion
