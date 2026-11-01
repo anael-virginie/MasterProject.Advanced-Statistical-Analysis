@@ -432,7 +432,8 @@ data.nutriment %>%
 ### Analyser la relation potentielle entre Y et les X
 Afin d'identifier les facteurs susceptibles d'influencer la richesse phytoplanctonique et les captures de poissons, nous examinons leurs relations avec les variables géographiques (`area`, `sub_basin`) et les apports en nutriments. Cette analyse exploratoire permet de mettre en évidence d'éventuelles associations et différences spatiales, sans présumer de leur significativité statistique.
 
-#### Variabilité spatiale des réponses biologiques
+#### Variable explicative
+##### variabilité spatiale
 Nous examinons d'abord la variabilité des réponses biologiques selon les zones géographiques (`area`) et les sous-bassins (`sub_basin`). Cette étape permet de déterminer si certaines zones présentent des valeurs généralement plus élevées ou plus faibles que d'autres.
 
 Ces différences spatiales sont importantes à prendre en compte, car elles pourraient influencer les relations observées entre les apports en nutriments et les réponses biologiques. Elles permettent également d'orienter le choix des effets fixes et aléatoires dans les futurs modèles mixtes.
@@ -473,56 +474,9 @@ for (variable in c("sub_basin", "area")) {
   )
 }
 ```
-#### Relations entre les réponses biologiques et les apports en nutriments
-Nous examinons ensuite les relations entre les deux variables réponses et les huit variables quantitatives correspondant aux apports de phosphore, d'azote et à la demande biologique en oxygène.
 
-L'objectif est de repérer d'éventuelles associations positives, négatives ou non linéaires entre les apports et les indicateurs biologiques.
-
-Les observations sont distinguées selon `area` afin de vérifier si les relations semblent similaires dans les deux zones. Cette distinction est importante, car une association observée à l'échelle du lac pourrait masquer des différences entre zones.
-
-La @fig-relations-nutriments-area suggère que les relations entre les apports en nutriments et les réponses biologiques varient selon les zones géographiques. Premieremenet concernant la richesse phytoplanctonique, nous observons une tendance globalement négative avec plusieurs apports en nutriments, notamment ceux de phosphore et la demande biologique en oxygène (BOD). Secondement, pour les captures de poissons, les tendances sont moins homogènes et peuvent différer entre les deux zones. Ces résultats suggèrent de possibles différences spatiales dans les relations étudiées, qui devront être vérifiées lors de la modélisation statistique.
-
-```{r}
-#| label: fig-relations-nutriments-area
-#| fig-cap: "Relations entre les réponses biologiques et les apports en nutriments selon le zone"
-#| fig-width: 15
-#| fig-height: 9
-#| echo: false
-#| message: false
-#| warning: false
-#| output: true
-
-data.analyse.relations <- data.biotic %>%
-  left_join(
-    data.nutriment,
-    by = c("year", "area"),
-    relationship = "many-to-one"
-  )
-
-data.analyse.relations %>%
-  pivot_longer(c(phyto_richness, fish_catch),
-               names_to = "indicateur", values_to = "reponse") %>%
-  pivot_longer(all_of(variables.nutriments),
-               names_to = "nutriment", values_to = "apport") %>%
-  ggplot(aes(x = apport, y = reponse, color = area)) +
-  geom_point(alpha = 0.6, na.rm = TRUE) +
-  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, na.rm = TRUE) +
-  facet_grid(indicateur ~ nutriment, scales = "free") +
-  scale_color_manual(values = c(
-    "Central Paijanne" = col.central,
-    "Northen Paijanne" = col.nothen
-  )) +
-  labs(
-    x = "Apports en nutriments",
-    y = "Valeur observée",
-    color = "zone"
-  ) +
-  theme_minimal()
-
-rm(data.analyse.relations)
-```
-#### Évolution temporelle des réponses biologiques
-Enfin, nous étudions l'évolution temporelle de la richesse phytoplanctonique et des captures de poissons (@fig-reponses-temporelles) afin d'identifier d'éventuelles tendances pouvant influencer les relations entre les apports en nutriments et les réponses biologiques.
+##### variabilité temporelle
+Nous étudions l'évolution temporelle de la richesse phytoplanctonique et des captures de poissons (@fig-reponses-temporelles) afin d'identifier d'éventuelles tendances pouvant influencer les relations entre les apports en nutriments et les réponses biologiques.
 
 Nous observons une tendance générale à l'augmentation de la richesse phytoplanctonique au cours du temps, malgré des fluctuations entre les sous-bassins. En revanche, l'évolution des captures de poissons est moins évidente, avec des fluctuations importantes et plusieurs périodes sans données disponibles, ne permettant pas de dégager une tendance générale claire.
 
@@ -579,6 +533,225 @@ data.spatial %>%
     color = "Zone"
   ) +
   theme_minimal()
+```
+
+#### Variable explicatives
+##### Variabilité spatiale
+A simple vue nous pouvons dire qu'il a des différences entre les deux zones géographiques (@fig-nutriments-spatiales-new), particulièrement pour `P_other`, `N_other` et `N_municipal`, dont les valeurs sont généralement plus élevées dans *Northen Paijanne*. Les apports de `P_municipal` et `P_industrial` y présentent également une dispersion plus importante. En revanche, les distributions de `BOD_industrial` et `BOD_municipal` se chevauchent davantage entre les deux zones. Ces observations restent descriptives et devront être confirmées par des analyses statistiques..^[Par exemple, un test de Wilcoxon pour données appariées, comparant les deux zones pour les mêmes années, sous réserve de l'indépendance des différences entre années. En présence d'autocorrélation temporelle, une méthode tenant compte de cette dépendance serait nécessaire.]
+
+```{r}
+#| label: fig-nutriments-spatiales-new
+#| fig-cap: "Variabilité spatiale des apports environnementaux selon la zone géographique"
+#| fig-width: 12
+#| fig-height: 8
+#| echo: false
+#| message: false
+#| warning: false
+
+data.nutriment %>%
+  pivot_longer(
+    all_of(variables.nutriments),
+    names_to = "nutriment",
+    values_to = "apport"
+  ) %>%
+  ggplot(aes(x = area, y = apport, fill = area)) +
+  geom_boxplot(na.rm = TRUE) +
+  facet_wrap(~nutriment, scales = "free_y", ncol = 4) +
+  scale_fill_manual(values = c(
+    "Central Paijanne" = col.central,
+    "Northen Paijanne" = col.nothen
+  )) +
+  labs(
+    x = "Zone géographique",
+    y = "Apport observé"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+##### Variabilité temporelle
+Nous étudions ensuite l'évolution des apports environnementaux (@fig-nutriments-temporelles-new). Ces séries temporelles révèle des tendances similaires entre zones géographiques comme pour le `P_other` et `N_other` mais avec des taux distincts, et des tendances complètement différentes comme `N_municipal` ou `N_industrial`.
+
+```{r}
+#| label: fig-nutriments-temporelles-new
+#| fig-cap: "Évolution temporelle des apports environnementaux selon la zone géographique"
+#| fig-width: 13
+#| fig-height: 12
+#| echo: false
+#| message: false
+#| warning: false
+
+data.nutriment %>%
+  pivot_longer(
+    all_of(variables.nutriments),
+    names_to = "nutriment",
+    values_to = "apport"
+  ) %>%
+  ggplot(aes(x = year, y = apport, color = area, group = area)) +
+  geom_line(na.rm = TRUE) +
+  geom_point(size = 1.2, na.rm = TRUE) +
+  facet_wrap(~nutriment, scales = "free_y", ncol = 2) +
+  scale_color_manual(values = c(
+    "Central Paijanne" = col.central,
+    "Northen Paijanne" = col.nothen
+  )) +
+  labs(
+    x = "Année",
+    y = "Apport observé",
+    color = "Zone géographique"
+  ) +
+  theme_minimal()
+```
+
+#### Variables réponses et variable explicatives
+Nous examinons ensuite les relations entre les deux variables réponses et les huit variables explicatives.
+
+L'objectif est de repérer d'éventuelles associations positives, négatives ou non linéaires entre les apports et les indicateurs biologiques.
+
+Les observations sont distinguées selon `area` afin de vérifier si les relations semblent similaires dans les deux zones. Cette distinction est importante, car une association observée à l'échelle du lac pourrait masquer des différences entre zones.
+
+##### Variabilité géographique
+La @fig-relations-nutriments-area suggère que les relations entre les apports en nutriments et les réponses biologiques varient selon les zones géographiques.
+
+Nous observons que: 
+
+* Captures de poissons (`fish_catch`) : les associations apparaissent moins marquées et plus hétérogènes, avec des différences de tendance entre les zones.
+* Richesse phytoplanctonique (`phyto_richness`) : des tendances généralement négatives sont observées nottament avec le phosphate mais aussi BOD (`P_municipal`, `P_industrial`, `BOD_municipal` et `BOD_industrial`).
+* Différences géographiques : certaines relations semblent varier selon la zone, notamment pour `N_municipal`, dont les tendances présentent des directions opposées entre Central Paijanne et Northen Paijanne.
+
+Cependant,  pourraient être influencées par des valeurs extrêmes ou par l'évolution temporelle des variables. Cela reste descriptive.
+
+```{r}
+#| label: fig-relations-nutriments-area
+#| fig-cap: "Relations entre les réponses biologiques et les apports en nutriments selon le zone"
+#| fig-width: 15
+#| fig-height: 9
+#| echo: false
+#| message: false
+#| warning: false
+#| output: true
+
+data.analyse.relations <- data.biotic %>%
+  left_join(
+    data.nutriment,
+    by = c("year", "area"),
+    relationship = "many-to-one"
+  )
+
+data.analyse.relations %>%
+  pivot_longer(c(phyto_richness, fish_catch),
+               names_to = "indicateur", values_to = "reponse") %>%
+  pivot_longer(all_of(variables.nutriments),
+               names_to = "nutriment", values_to = "apport") %>%
+  ggplot(aes(x = apport, y = reponse, color = area)) +
+  geom_point(alpha = 0.6, na.rm = TRUE) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, na.rm = TRUE) +
+  facet_grid(indicateur ~ nutriment, scales = "free") +
+  scale_color_manual(values = c(
+    "Central Paijanne" = col.central,
+    "Northen Paijanne" = col.nothen
+  )) +
+  labs(
+    x = "Apports en nutriments",
+    y = "Valeur observée",
+    color = "zone"
+  ) +
+  theme_minimal()
+
+rm(data.analyse.relations)
+```
+##### Variabilité temporelle
+Afin de compléter l'analyse des relations entre les variables réponses et explicatives, nous examinons leur évolution temporelle conjointe selon les deux zones géographiques (@fig-relations-temporelles-nutriments). Les valeurs sont standardisées afin de rendre comparables les tendances des indicateurs biologiques et des apports environnementaux, malgré leurs unités différentes.
+
+Cette analyse a simple vue ne révèle pas de relation générale clairement identifiable (@fig-relations-temporelles-nutriments) . Certaines concordances ponctuelles peuvent être observées, notamment entre les apports associés à la `BOD` et les `fish_catch`, ainsi qu'entre `N_other` et la `phyto_richness.` Toutefois, ces rapprochements visuels ne sont ni systématiques ni suffisamment nets pour suggérer une association robuste. Une analyse statistique tenant compte des dimensions spatiale et temporelle sera donc nécessaire pour évaluer ces relations.
+
+```{r}
+#| label: fig-relations-temporelles-nutriments
+#| fig-cap: "Évolution temporelle conjointe des réponses biologiques et des apports environnementaux selon la zone géographique. Axe X : année | axe Y : valeurs standardisées."
+#| fig-width: 15
+#| fig-height: 11
+#| echo: false
+#| message: false
+#| warning: false
+
+data.biotic %>%
+  group_by(year, area) %>%
+  summarise(
+    phyto_richness = mean(phyto_richness, na.rm = TRUE),
+    fish_catch = if (all(is.na(fish_catch))) NA_real_
+                 else mean(fish_catch, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    data.nutriment,
+    by = c("year", "area"),
+    relationship = "one-to-one"
+  ) %>%
+  pivot_longer(
+    c(phyto_richness, fish_catch),
+    names_to = "reponse",
+    values_to = "valeur_biotique"
+  ) %>%
+  pivot_longer(
+    all_of(variables.nutriments),
+    names_to = "nutriment",
+    values_to = "valeur_nutriment"
+  ) %>%
+  group_by(reponse, nutriment, area) %>%
+  mutate(
+    biotique_standardisee = as.numeric(scale(valeur_biotique)),
+    nutriment_standardise = as.numeric(scale(valeur_nutriment))
+  ) %>%
+  ungroup() %>%
+  select(
+    year, area, reponse, nutriment,
+    biotique_standardisee, nutriment_standardise
+  ) %>%
+  pivot_longer(
+    c(biotique_standardisee, nutriment_standardise),
+    names_to = "type",
+    values_to = "valeur"
+  ) %>%
+  mutate(
+    type_legende = case_when(
+      type == "biotique_standardisee" & reponse == "phyto_richness" ~ "phyto_richness",
+      type == "biotique_standardisee" & reponse == "fish_catch" ~ "fish_catch",
+      type == "nutriment_standardise" ~ "nutriment"
+    )
+  ) %>%
+  ggplot(aes(x = year, y = valeur, color = type_legende, group = type)) +
+  geom_line(na.rm = TRUE) +
+  geom_point(size = 0.8, na.rm = TRUE) +
+  facet_grid(
+    rows = vars(reponse, area),
+    cols = vars(nutriment)
+  ) +
+  scale_color_manual(
+    values = c(
+      "phyto_richness" = col.phyto,
+      "fish_catch" = col.fish,
+      "nutriment" = col.nutriments
+    ),
+    labels = c(
+      "phyto_richness" = "Richesse phytoplanctonique",
+      "fish_catch" = "Captures de poissons",
+      "nutriment" = "Apport environnemental"
+    )
+  ) +
+  labs(
+    x = "Année",
+    y = "Valeur standardisée",
+    color = "Variable"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 8)
+  )
 ```
 
 ## Valeurs manquantes
