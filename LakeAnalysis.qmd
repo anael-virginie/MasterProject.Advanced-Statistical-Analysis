@@ -1062,8 +1062,316 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 
 ### PCA
 
-
 ### RDA
+
+Bien que l'analyse de redondance (RDA) permette d'étudier simultanément les relations entre plusieurs variables réponses et un ensemble de prédicteurs environnementaux, nous avons choisi de privilégier une approche de modélisation univariée pour les analyses principales.
+
+Ce choix repose principalement sur la structure de nos données. D'une part, les captures de poissons et la richesse phytoplanctonique présentent des distributions et des proportions de valeurs manquantes différentes. Une analyse conjointe nécessite de ne conserver que les observations pour lesquelles les deux indicateurs sont disponibles, entraînant ainsi une perte importante d'informations concernant la richesse phytoplanctonique (passant de 114 à 67 observations).
+
+D'autre part, les variables environnementales sont mesurées à l'échelle des secteurs géographiques et des années, tandis que les réponses biologiques sont observées à l'échelle des sous-bassins. Plusieurs observations biologiques partagent donc les mêmes valeurs environnementales, ce qui introduit une structure hiérarchique et une dépendance entre observations que la RDA classique ne permet pas de modéliser explicitement.
+
+Nous privilégions donc une modélisation séparée des deux indicateurs biologiques pour l'analyse principale, permettant d'adapter la distribution statistique à chaque variable réponse et d'examiner explicitement les structures de dépendance spatiale et temporelle lorsque les données le permettent.
+
+#### RDA partielle conjointe : analyse exploratoire
+
+Nous réalisons néanmoins une **RDA partielle conjointe** à titre exploratoire, afin d'examiner la variation simultanée des captures de poissons (`fish_catch`) et de la richesse phytoplanctonique (`phyto_richness`) associée aux apports environnementaux **après retrait** de la tendance temporelle linéaire (`year`) et des différences moyennes entre sous-bassins (`sub_basin`). Le conditionnement permet de mieux isoler la fraction environnementale propre, mais ne constitue pas un modèle d'effets aléatoires et ne garantit pas l'indépendance des observations.
+
+Nous suivons la démarche du cours : préparation d'un échantillon commun, examen des VIF, sélection raisonnée des prédicteurs, puis **partition de variance** entre apports environnementaux, année et sous-bassin. Les tests et l'ordination portent uniquement sur la RDA partielle finale.
+
+##### Préparation des données
+
+Les deux jeux de données ont été rapprochés précédemment par l'année (`year`) et le secteur géographique (`area`). Cette jointure associe à chaque observation biologique les apports environnementaux correspondant à la même année et au même secteur ; elle ne repose pas sur la position des lignes dans les tables. Les observations des sous-bassins ne sont pas moyennées (@tbl-preparation-prda-conjointe).
+
+Pour comparer les spécifications sur un échantillon constant, nous conservons les observations complètes pour les **deux réponses** et pour les **six prédicteurs initialement candidats**. `N_industrial` et `N_other` restent exclus conformément à l'analyse de corrélation (@sec-correlation). La standardisation des deux réponses (`scale = TRUE`) évite qu'un indicateur domine uniquement en raison de son unité de mesure.
+
+```{r}
+#| label: preparation-prda-conjointe
+#| include: false
+
+variables.rda.candidates <- setdiff(
+  variables.nutriments, c("N_industrial", "N_other")
+)
+variables.rda.finales <- c(
+  "P_industrial", "P_other", "BOD_municipal", "BOD_industrial"
+)
+
+data.rda.conjointe <- data.analyse %>%
+  tidyr::drop_na(
+    year, area, sub_basin,
+    fish_catch, phyto_richness,
+    all_of(variables.rda.candidates)
+  ) %>%
+  mutate(sub_basin = as.factor(sub_basin))
+
+# Vérification de la structure imbriquée : chaque sous-bassin appartient
+# à un seul secteur. Dans le cas contraire, le texte doit être adapté.
+structure.sous.bassins <- data.rda.conjointe %>%
+  distinct(sub_basin, area) %>%
+  count(sub_basin, name = "nombre.secteurs")
+stopifnot(all(structure.sous.bassins$nombre.secteurs == 1L))
+```
+
+Les `r nrow(data.rda.conjointe)` observations complètes correspondent à `r nrow(dplyr::distinct(data.rda.conjointe, year, area))` combinaisons distinctes d'année et de secteur (@tbl-preparation-prda-conjointe). Plusieurs réponses biologiques partagent donc les mêmes valeurs environnementales, et ne constituent donc pas des réplicats environnementaux indépendants.
+
+```{r}
+#| label: tbl-preparation-prda-conjointe
+#| tbl-cap: "Aperçu des observations communes utilisées pour la RDA partielle conjointe"
+#| echo: false
+
+data.rda.conjointe %>%
+  select(year, area, sub_basin, fish_catch, phyto_richness,
+         all_of(variables.rda.finales)) %>%
+  head(3) %>%
+  knitr::kable(digits = 2)
+```
+
+##### Diagnostic de colinéarité et sélection raisonnée des prédicteurs
+
+La forte corrélation de certaines variables environnementales peut rendre leurs contributions individuelles difficiles à distinguer. Le cours recommande de viser environ **dix observations indépendantes par prédicteur**, et d'examiner les **VIF** avant l'interprétation des tests marginaux. Les 67 lignes disponibles ne correspondent qu'à 44 combinaisons `year x area` ; sur cette base indicative, les six prédicteurs initiaux représentent environ 7,3 unités environnementales par prédicteur, contre 11 pour quatre prédicteurs. Cette règle n'est toutefois pas un calcul formel de taille d'échantillon effective : les années peuvent être dépendantes, les observations partagent des valeurs environnementales et les covariables conditionnées mobilisent également des degrés de liberté.
+
+Nous comparons quatre **RDA partielles conjointes**, toutes conditionnées par `year + sub_basin` et ajustées sur les mêmes données. Les deux variables écartées sont absentes du modèle final et des analyses suivantes ; cette sélection par VIF et $R^2$ ajusté reste exploratoire et ne démontre pas l'absence d'un effet écologique des variables retirées.
+
+Les modèles ont été examinés dans l'ordre suivant (@tbl-prda-comparaison) :
+
+1. **Modèle initial (6 X).** Les VIF sont particulièrement élevés pour `N_municipal` (16,20) et `P_municipal` (11,75), tandis que le $R^2$ ajusté est de 0,0219.
+2. **Sans `N_municipal` (5 X).** Cette première réduction permet de vérifier si cette variable fournit une information propre suffisante. Le $R^2$ ajusté augmente à 0,0322, mais le VIF de `P_municipal` reste supérieur à 10 (11,35).
+3. **Sans `P_municipal` (5 X).** En conservant cette fois `N_municipal`, le $R^2$ ajusté est de 0,0285 et le VIF de `N_municipal` reste élevé (15,65) : cette solution ne résout pas suffisamment la redondance.
+4. **Sans les deux variables (4 X).** Le modèle réduit présente le plus grand $R^2$ ajusté des quatre (0,0378), malgré un $R^2$ brut légèrement plus faible (0,0709 au lieu de 0,0762). Tous les VIF **des prédicteurs environnementaux** sont alors inférieurs à 10.
+
+Les corrélations explorées précédemment (@sec-correlation) aident à expliquer ces VIF élevés  (@tbl-prda-comparaison) :
+
+- `P_municipal` est fortement corrélé à `BOD_municipal` (ρ = 0,906), les deux variables étant liées aux rejets municipaux.
+- `P_municipal` est également fortement corrélé à `P_other` (ρ = 0,919).
+- `N_municipal` présente une corrélation modérée avec `BOD_municipal` (ρ = 0,627) et `P_other` (ρ = 0,574).
+
+Ces corrélations suggèrent que les variables conservées, notamment `BOD_municipal` et `P_other`, représentent une partie de l'information statistique apportée par `P_municipal` et `N_municipal`, sans leur être équivalentes. Nous avons donc décidé d'éliminer ces deux dernières variables afin de réduire la multicolinéarité et de conserver **quatre prédicteurs environnementaux pour 44 combinaisons distinctes d'année et de secteur**. Ce choix permet de respecter approximativement la règle des dix observations par prédicteur et d'obtenir un modèle plus parcimonieux.
+
+```{r}
+#| label: ajustement-prda-candidats
+#| include: false
+
+# Modèle de départ : six prédicteurs
+rda.partielle.initiale <- vegan::rda(
+  as.matrix(data.rda.conjointe[, c("fish_catch", "phyto_richness")]) ~
+    P_municipal + P_industrial + P_other +
+    N_municipal + BOD_municipal + BOD_industrial +
+    Condition(year + sub_basin),
+  data = data.rda.conjointe,
+  scale = TRUE
+)
+
+# Première alternative : exclure N_municipal
+rda.partielle.sansN <- vegan::rda(
+  as.matrix(data.rda.conjointe[, c("fish_catch", "phyto_richness")]) ~
+    P_municipal + P_industrial + P_other +
+    BOD_municipal + BOD_industrial +
+    Condition(year + sub_basin),
+  data = data.rda.conjointe,
+  scale = TRUE
+)
+
+# Deuxième alternative : exclure P_municipal
+rda.partielle.sansP <- vegan::rda(
+  as.matrix(data.rda.conjointe[, c("fish_catch", "phyto_richness")]) ~
+    P_industrial + P_other + N_municipal +
+    BOD_municipal + BOD_industrial +
+    Condition(year + sub_basin),
+  data = data.rda.conjointe,
+  scale = TRUE
+)
+
+# Modèle final : exclure simultanément N_municipal et P_municipal
+rda.partielle <- vegan::rda(
+  as.matrix(data.rda.conjointe[, c("fish_catch", "phyto_richness")]) ~
+    P_industrial + P_other + BOD_municipal + BOD_industrial +
+    Condition(year + sub_basin),
+  data = data.rda.conjointe,
+  scale = TRUE
+)
+
+modeles.rda <- list(
+  "Initial (6 X)" = rda.partielle.initiale,
+  "Sans N municipal (5 X)" = rda.partielle.sansN,
+  "Sans P municipal (5 X)" = rda.partielle.sansP,
+  "Final (4 X)" = rda.partielle
+)
+```
+
+```{r}
+#| label: tbl-prda-comparaison
+#| tbl-cap: "Sélection des prédicteurs : R² bruts et ajustés et VIF des quatre RDA partielles candidates"
+#| echo: false
+
+# Tous les VIF sont présentés, y compris ceux des covariables conditionnées.
+variables.vif <- unique(unlist(lapply(
+  modeles.rda, function(modele) names(vegan::vif.cca(modele))
+)))
+indicateurs <- c("R²", "R² ajusté", paste("VIF", variables.vif))
+comparaison.rda <- tibble(Indicateur = indicateurs)
+
+for (nom in names(modeles.rda)) {
+  modele <- modeles.rda[[nom]]
+  r2 <- vegan::RsquareAdj(modele)
+  vif <- vegan::vif.cca(modele)
+  valeurs <- c(
+    "R²" = r2$r.squared,
+    "R² ajusté" = r2$adj.r.squared,
+    stats::setNames(as.numeric(vif), paste("VIF", names(vif)))
+  )
+  comparaison.rda[[nom]] <- unname(valeurs[indicateurs])
+}
+
+comparaison.rda %>%
+  mutate(across(-Indicateur, ~ case_when(
+    is.na(.x) ~ "—",
+    Indicateur %in% c("R²", "R² ajusté") ~ sprintf("%.4f", .x),
+    TRUE ~ sprintf("%.2f", .x)
+  ))) %>%
+  knitr::kable(align = c("l", rep("c", length(modeles.rda))))
+```
+
+##### Partition de variance
+
+La partition de variance permet d'évaluer séparément la contribution propre des apports environnementaux et celle des covariables utilisées dans la RDA partielle. Les deux partitions utilisent **les mêmes deux réponses standardisées**, **les mêmes observations** et **les quatre prédicteurs environnementaux retenus** dans le modèle final.
+
+###### Partition de variance : deux ensembles
+
+La première partition regroupe l'année et le sous-bassin dans un seul ensemble. Elle distingue la variation propre aux apports environnementaux, la variation propre à la structure spatio-temporelle, leur fraction partagée et la fraction résiduelle.
+
+La première partition (@fig-prda-partition-2) montre que :
+
+- les quatre variables environnementales retenues expliquent exclusivement **3,78 %** de la variation conjointe ;
+- la structure spatiale et temporelle explique exclusivement **26,9 %** de cette variation ;
+- la fraction **partagée** entre les apports environnementaux et la structure spatio-temporelle atteint **9,0 %** ;
+- la fraction résiduelle atteint **60,3 %**.
+
+```{r}
+#| label: prda-partition-2-calcul
+#| include: false
+
+partition.rda.2 <- vegan::varpart(
+  Y = as.matrix(data.rda.conjointe[, c("fish_catch", "phyto_richness")]),
+  ~ P_industrial + P_other + BOD_municipal + BOD_industrial,
+  ~ year + sub_basin,
+  data = data.rda.conjointe,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: fig-prda-partition-2
+#| fig-cap: "Partition de la variation conjointe : apports environnementaux et structure spatio-temporelle"
+#| echo: false
+#| fig-width: 7
+#| fig-height: 5
+
+plot(
+  partition.rda.2,
+  Xnames = c("Apports", "Année + bassin"),
+  bg = c("seagreen3", "mediumpurple"),
+  alpha = 0.35,
+  cutoff = -Inf,
+  digits = 2,
+  cex = 1.0,
+  id.size = 0.95
+)
+```
+
+###### Partition de variance : trois ensembles
+
+Nous séparons désormais trois sources de variation : **(X1) apports environnementaux**, **(X2) année** et **(X3) sous-bassin**. Le Venn à trois ensembles permet de distinguer leurs contributions propres, les fractions partagées par paires, la fraction commune aux trois ensembles et la variation résiduelle.
+
+La seconde partition (@fig-prda-partition-3) précise les contributions du temps et de l'espace :
+
+- les apports environnementaux expliquent exclusivement **3,78 %** de la variation, comme dans la partition précédente ;
+- l'année présente la contribution propre la plus élevée, avec **21,33 %** de la variation ;
+- le sous-bassin explique exclusivement **5,89 %** de la variation ;
+- la fraction partagée **uniquement entre les apports environnementaux et l'année** atteint **8,70 %**, ce qui suggère une forte structure temporelle commune ;
+- les fractions partagées uniquement entre apports et sous-bassin (**−0,16 %**) et entre année et sous-bassin (**−0,29 %**) sont très faibles et légèrement négatives après ajustement ;
+- la fraction commune **aux trois ensembles** atteint **0,45 %**.
+
+La fraction partagée de **9,0 %** dans le Venn à deux ensembles est répartie entre plusieurs zones dans celui à trois ensembles : **8,70 % − 0,16 % + 0,45 % = 8,99 %**, soit environ **9,0 %** après arrondi. Il ne faut donc pas comparer directement la seule zone de 8,70 % à la totalité de l'intersection du premier diagramme.
+
+```{r}
+#| label: prda-partition-3-calcul
+#| include: false
+
+partition.rda.3 <- vegan::varpart(
+  Y = as.matrix(data.rda.conjointe[, c("fish_catch", "phyto_richness")]),
+  ~ P_industrial + P_other + BOD_municipal + BOD_industrial,
+  ~ year,
+  ~ sub_basin,
+  data = data.rda.conjointe,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: fig-prda-partition-3
+#| fig-cap: "Partition de la variation conjointe en trois ensembles : apports environnementaux, année et sous-bassin"
+#| echo: false
+#| fig-width: 8
+#| fig-height: 6
+
+plot(
+  partition.rda.3,
+  Xnames = c("Apports", "Année", "Sous-bassin"),
+  bg = c("seagreen3", "goldenrod2", "mediumpurple"),
+  alpha = 0.35,
+  cutoff = -Inf,
+  digits = 2,
+  cex = 0.95,
+  id.size = 0.95
+)
+```
+
+##### Résultats de la RDA partielle et interprétation des partitions
+
+Les deux diagrammes (@fig-prda-partition-2 et @fig-prda-partition-3) permettent de quantifier la part de variation biologique associée aux apports environnementaux, mettant en évidence l'importance de la structure temporelle et spatiales. Cependant, ces assoications ne permettent pas à elles seules établir des relations cause à effet. Nous retenons donc le **conditionnement par `year + sub_basin`** pour examiner les associations propres aux quatre apports environnementaux sélectionnés.
+
+La RDA partielle finale explique **7,09 % de la variation restant après conditionnement** ($R^2$ brut = 0,0709). Son $R^2$ ajusté est de **3,78 %** : cette contribution propre des apports à l'échelle de la variation totale ajustée correspond à la zone environnementale exclusive des deux diagrammes.
+
+```{r}
+#| label: tbl-prda-finale-r2
+#| tbl-cap: "R² brut et ajusté de la RDA partielle finale (4 prédicteurs)"
+#| echo: false
+
+tibble::tibble(
+  Modèle = "RDA partielle (4 prédicteurs)",
+  n = nrow(data.rda.conjointe),
+  `R² brut` = vegan::RsquareAdj(rda.partielle)$r.squared,
+  `R² ajusté` = vegan::RsquareAdj(rda.partielle)$adj.r.squared
+) %>%
+  knitr::kable(digits = 4)
+```
+
+##### Tests de permutation exploratoires
+Nous avons choisi de ne pas réaliser les tests de permutation habituellement associés à la RDA partielle (test global, les tests par axe et les tests séquentiels et marginaux), en raison de la structure de nos données. Plusieurs sous-bassins partagent les mêmes valeurs environnementales pour une combinaison donnée d'année et de secteur (year × area), tandis que les observations successives peuvent présenter une autocorrélation temporelle. Nous limitons donc cette RDA partielle à une analyse exploratoire et descriptive, fondée sur le $R^2$ ajusté.
+
+##### Conclusion et Représentation de l'ordination partielle finale
+
+Le biplot représente les relations entre les deux réponses biologiques et les **quatre** gradients environnementaux retenus, après retrait de la tendance temporelle linéaire et des différences moyennes entre sous-bassins (@fig-prda-conjointe). Son interprétation doit tenir compte de la faible fraction d'inertie expliquée et des limites des observations répétées.
+
+L'observation du biplot de la RDA partielle suggère que :
+
+- `fish_catch` est principalement associé à `BOD_municipal`, les deux variables présentant une orientation similaire.
+- `phyto_richness` semble davantage associé aux apports d'origine industrielle, notamment `P_industrial` et `BOD_industrial`.
+- Les deux indicateurs biologiques présentent des orientations différentes, suggérant des relations distinctes avec les gradients environnementaux étudiés.
+
+Ces associations sont observées après conditionnement par l'année et le sous-bassin et ne permettent pas, à elles seules, de conclure à des effets causaux.
+
+```{r}
+#| label: fig-prda-conjointe
+#| fig-cap: "RDA partielle conjointe finale : réponses biologiques et quatre gradients environnementaux"
+#| echo: false
+#| fig-width: 9
+#| fig-height: 7
+
+plot(rda.partielle, scaling = 2, display = c("sp", "bp"))
+```
+
+_Cette analyse conjointe explore les gradients communs aux captures de poissons et à la richesse phytoplanctonique ; elle ne permet pas de quantifier indépendamment la réponse propre à chaque indicateur avec une famille statistique adaptée. Cet objectif sera poursuivi dans les modèles univariés._
+
 
 
 ## GLM / GLMM etc..
