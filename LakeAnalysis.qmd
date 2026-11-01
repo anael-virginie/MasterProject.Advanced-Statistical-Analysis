@@ -17,10 +17,27 @@ editor:
     canonical: false
     wrap: 72
 ---
+# Introduction
+
+L'eutrophisation des milieux aquatiques constitue une problématique majeure notamment dans l'écosystème des lacs. Les apports excessifs en nutriments, tels que le phosphore et l'azote, ainsi que les charges de pollution organique mesurées par la demande biologique en oxygène (DBO), peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplancton et affecter les communautés de poissons.
+
+Afin de mieux comprendre ces relations, un suivi à long terme a été réalisé sur le lac Päijänne (Finlande). Ce suivi comprend des mesures annuelles d'apports en en phosphore (sources municipale, industrielle et autres), en azote (sources municipale, industrielle et autres), ainsi que de demande biologique en oxygène (municipale et industrielle). Des indicateurs biologiques ont également été relevés dans plusieurs sous-bassins répartis au sein de différentes zones géographiques du lac.
+
+Parmi les variables biologiques disponibles, trois indicateurs étaient initialement mesurés : la richesse phytoplanctonique (phyto_richness), la production primaire (prim_prod) et les captures de poissons (fish_catch). Cependant, la variable de production primaire n'étant disponible que de manière limitée dans le jeu de données, elle n'a pas été retenue dans la suite des analyses. Notre étude se concentre donc sur la richesse phytoplanctonique et les captures de poissons, considérées comme indicateurs des réponses biologiques aux variations des apports en nutriments.
+
+L'objectif de cette étude est d'identifier les facteurs environnementaux susceptibles d'influencer ces deux indicateurs biologiques. Plus précisément, nous chercherons à savoir, quels sont les facteurs influençant la richesse phytoplanctonique et les captures de poissons dans un lac boréal ?
+  
+Pour répondre à ces questions, nous analysons l'évolution spatiale et temporelle des variables environnementales ainsi que leurs relations avec les réponses biologiques observées.
+
+L'analyse est réalisée en plusieurs étapes. Nous commençons par une exploration descriptive des données afin d'examiner leur structure, leurs distributions et les éventuelles valeurs manquantes. Nous étudions ensuite les relations entre les variables environnementales et biologiques, ainsi que les corrélations entre les différents nutriments. Enfin, des approches multivariées et des modèles statistiques seront utilisés pour identifier les facteurs les plus fortement associés aux variations observées des communautés biologiques.
+
+
 ```{r initialisation}
 #| include: false
 # install.packages(c("readxl", "tidyverse", "naniar", "knitr",
-#                    "glmmTMB", "DHARMa", "performance", "vegan"))
+#                    "glmmTMB", "DHARMa", "performance", "vegan", "FactoMineR", "factoextra"))
+library(FactoMineR)
+library(factoextra)
 library(readxl)
 library(tidyverse)
 library(naniar)
@@ -1062,10 +1079,186 @@ data.analyse.fish.impute <- data.analyse.impute %>%
   select(-phyto_richness)
 ```
 
-## ANALYSE multivarie
 
-### PCA
+## Analyse multivariée
 
+### Analyse en composantes principales (ACP)
+
+L'analyse en composantes principales (ACP) est utilisée afin de synthétiser l'information contenue dans les variables décrivant les apports en nutriments et de visualiser leurs relations. Cette approche permet notamment d'identifier d'éventuels gradients environnementaux et de mettre en évidence les variables contribuant le plus à la variabilité observée.
+
+Compte tenu des corrélations précédemment observées entre plusieurs apports, l'ACP fournit également une représentation simplifiée de la structure de dépendance entre les variables.
+
+L'analyse est réalisée sur les variables quantitatives retenues après l'étude des corrélations, en utilisant des données centrées et réduites afin de rendre comparables les variables exprimées dans des unités différentes.
+
+#### Réalisation de l'ACP
+```{r}
+#| label: pca-calcul
+#| echo: false
+#| message: false
+#| warning: false
+
+data.pca <- data.nutriment.clean %>%
+  select(N_municipal,
+         P_municipal,
+         P_industrial,
+         P_other,
+         BOD_municipal,
+         BOD_industrial)
+
+res.pca <- FactoMineR::PCA(
+  data.pca,
+  scale.unit = TRUE,
+  graph = FALSE)
+```
+
+#### Variance expliquée par les axes
+
+Nous examinons tout d'abord la proportion de variance expliquée par les composantes principales afin de déterminer combien d'axes résument efficacement l'information contenue dans les variables environnementales.
+
+```{r}
+#| label: fig-pca-eigenvalues
+#| fig-cap: "Pourcentage de variance expliqué par les différentes composantes principales de l'ACP."
+#| echo: false
+#| message: false
+#| warning: false
+fviz_eig(res.pca,
+         addlabels = TRUE) +
+  labs(x = "Axes principaux",
+       y = "Pourcentage de variance expliquée")
+```
+Les deux premiers axes résument l'essentiel de la variabilité des données environnementales. Le premier axe explique 49,3 % de la variance totale tandis que le second en explique 30,2 %. Ensemble, les deux premiers axes représentent donc 79,5 % de la variance observée (@fig-pca-eigenvalues).
+
+Les axes suivants expliquant chacun moins de 10 % de la variance, leur contribution est considérée comme secondaire pour l'interprétation écologique des données. Nous concentrons ainsi l'interprétation de l'ACP sur les deux premiers axes.
+
+
+#### Relations entre les variables environnementales
+
+Le cercle des corrélations permet d'interpréter les gradients environnementaux représentés par les axes principaux.
+
+```{r}
+#| label: fig-pca-correlation
+#| fig-cap: "Cercle des corrélations représentant les relations entre les apports en nutriments et la demande biologique en oxygène dans le plan formé par les deux premiers axes de l'ACP."
+#| echo: false
+#| message: false
+#| warning: false
+fviz_pca_var(res.pca,
+             col.var = "contrib",
+             gradient.cols = c("lightblue", "blue", "red"),
+             repel = TRUE) +
+  labs(x = "Axe 1 (49,3 %)",
+       y = "Axe 2 (30,2 %)",
+       colour = "Contribution")
+```
+Le cercle des corrélations met en évidence les relations entre les différentes variables décrivant les apports en nutriments et leur contribution aux deux premiers axes de l'ACP (@fig-pca-correlation).
+
+Le premier axe (Axe1), qui explique 49,3 % de la variance totale, est principalement associé à BOD_municipal, P_municipal, P_industrial et BOD_industrial. Il semble ainsi représenter un gradient général d'apports phosphorés et de charge organique d'origine anthropique.
+
+Le second axe (Axe2), qui explique 30,2 % de la variance totale, est essentiellement structuré par P_other et N_municipal. Cet axe traduit donc un second gradient environnemental relativement indépendant du premier.
+
+
+#### Contribution des variables aux axes principaux
+
+Afin d'interpréter les gradients identifiés par l'ACP, nous examinons la contribution des différentes variables aux premiers axes.
+
+```{r}
+#| label: fig-pca-contrib1
+#| fig-cap: "Contribution des variables environnementales à la construction du premier axe de l'ACP."
+#| echo: false
+#| message: false
+#| warning: false
+fviz_contrib(res.pca,
+             choice = "var",
+             axes = 1) +
+  labs(x = "Variables",
+       y = "Contribution (%)")
+```
+```{r}
+#| label: fig-pca-contrib2
+#| fig-cap: "Contribution des variables environnementales à la construction du second axe de l'ACP."
+#| echo: false
+#| message: false
+#| warning: false
+fviz_contrib(res.pca,
+             choice = "var",
+             axes = 2) +
+  labs(x = "Variables",
+       y = "Contribution (%)")
+```
+L'examen des contributions des variables montre que l'axe 1 est principalement structuré par BOD_municipal, P_municipal, P_industrial et BOD_industrial (@fig-pca-contrib1), tandis que l'axe 2 est essentiellement porté par P_other et N_municipal  (@fig-pca-contrib2). Ces résultats confirment l'existence de deux gradients environnementaux distincts au sein des apports en nutriments.
+
+
+#### Répartition des observations dans l'espace multivarié
+
+Nous représentons ensuite les observations selon les deux premiers axes afin d'évaluer l'existence éventuelle d'une structuration spatiale entre les secteurs étudiés.
+
+```{r}
+#| label: fig-pca-individus
+#| fig-cap: "Projection des observations selon les deux premiers axes de l'ACP en fonction de la zone géographique du lac."
+#| echo: false
+#| message: false
+#| warning: false
+
+coord.ind <- as.data.frame(res.pca$ind$coord)
+coord.ind$area <- data.nutriment.clean$area
+
+fviz_pca_ind(res.pca,
+             geom = "point",
+             habillage = coord.ind$area,
+             addEllipses = TRUE,
+             palette = c("Central Paijanne" = col.central,
+                         "Northen Paijanne" = col.nothen),
+             legend.title = "Zone géographique") +
+  labs(x = "Axe 1 (49,3 %)",
+       y = "Axe 2 (30,2 %)")
+```
+La projection des observations sur les deux premiers axes de l'ACP met en évidence une séparation nette entre les zones Central Paijanne et Northen Paijanne (@fig-pca-individus). Cette différenciation est principalement portée par l'axe 2, associé notamment à N_municipal et P_other (@fig-pca-correlation).
+Ces résultats indiquent que la variable area constitue une source importante de variation environnementale et devra être prise en compte dans les analyses ultérieures.
+
+#### Analyses statistiques 
+Afin de tester statistiquement la séparation observée sur l'ACP, nous avons réalisé une analyse de variance multivariée par permutation (PERMANOVA) à partir des six variables environnementales retenues.
+```{r}
+#| label: test_permanova
+#| echo: false
+#| message: false
+#| warning: false
+data.pca <- data.nutriment.clean %>%
+  select(N_municipal,
+         P_municipal,
+         P_industrial,
+         P_other,
+         BOD_municipal,
+         BOD_industrial)
+  
+distance.euclidienne <- dist(scale(data.pca),
+                             method = "euclidean")
+
+set.seed(123)
+
+resultat.permanova <- vegan::adonis2(distance.euclidienne ~ area,
+                                     data = data.nutriment.clean,
+                                     permutations = 999)
+
+resultat.permanova
+```
+Les résultats indiquent une différence significative entre les zones Central Paijanne et Northen Paijanne (R² = 0,273 ; p = 0,001), suggérant que la variable area explique 27,3 % de la variabilité observée des apports en nutriments et de la demande biologique en oxygène.
+
+Afin de vérifier que cette différence ne résulte pas d'une dispersion différente des observations entre les groupes, un test de dispersion multivariée (PERMDISP) a été réalisé.
+```{r}
+#| label: test_PERMDISP
+#| echo: false
+#| message: false
+#| warning: false
+resultat.betadisper <- vegan::betadisper(distance.euclidienne,
+                                         data.nutriment.clean$area)
+
+anova(resultat.betadisper)
+```
+Ce test ne met pas en évidence de différence significative entre les dispersions des deux zones (F = 0,043 ; p = 0,836). 
+
+Les résultats de la PERMANOVA peuvent donc être interprétés comme reflétant une différence réelle de composition environnementale entre les deux secteurs étudiés.
+
+## conclusion 
+Dans l'ensemble, l'ACP met en évidence deux gradients environnementaux principaux résumant 79,5 % de la variabilité des apports en nutriments et de la demande biologique en oxygène. Elle révèle également une différenciation nette entre les zones Central Paijanne et Northen Paijanne. Cette séparation visuelle est confirmée par la PERMANOVA, qui met en évidence une différence significative entre les deux zones (R² = 0,273 ; p = 0,001). Le test de PERMDISP n'étant pas significatif (p = 0,836), cette différence ne résulte pas d'une dispersion différente des observations entre les groupes, mais reflète bien une différence de composition environnementale. Ces résultats justifient ainsi la prise en compte de la structure spatiale dans les analyses multivariées suivantes.
 
 ### RDA
 
