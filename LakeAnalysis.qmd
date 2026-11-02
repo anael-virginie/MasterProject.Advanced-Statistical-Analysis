@@ -1112,21 +1112,23 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 #### GLMM Fish catch 
 
 ##### Variables non-agrégées
+
 ###### Hypothèses des modèles
-- M1 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons, et cet effet diffère selon l'origine des rejets (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année) ;
-- M2 (`m_fishTot`) : tous les nutriments ont un effet sur les captures, indépendamment de l'origine des rejets (phosphore, azote et DBO totaux, avec l'année) ;
-- M3 (`m_fish_BOD`) : seule la DBO a un effet sur les captures, et son origine compte (DBO municipale et industrielle séparées, avec l'année) ;
-- M4 (`m_fish_P`) : seul le phosphore a un effet sur les captures, et son origine compte (les trois sources de phosphore séparées, avec l'année).
+- M0 (m_fish_year) : seule la tendance temporelle compte 
+- M1 (`m_fish_P`) : seul le phosphore a un effet sur les captures dépendamment de l'origine du rejet
+- M2 (`m_fish_BOD`) : seule la DBO a un effet sur les captures dépendamment de l'origine du rejet 
+- M3 (`m_fish_add`) : le phosphore et la DBO influencent la richesse de facon additive, dépendamment de l'origine du rejet 
+- M4 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons dépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année)
 
 ###### Choix du modèle {#sec-fish-choix-model}
 
 Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma.
 
 ```{r}
-#| label: mod-gamma-fish
+#| label: mod-fish-Complet
 
 # Modèle 
-m_gamma_fish <- glmmTMB(fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + year +
+m_fish_Complet <- glmmTMB(fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + year +
     (1 | sub_basin),
   family = Gamma(link = "log"),
   data = data.analyse.fish.GLMM
@@ -1221,7 +1223,58 @@ Malgré un léger signal de surdispersion, les résidus sont globalement proche 
 attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
 
 ###### Création des modèles
-Modèle pour explorer les effets de chaque type de loading
+
+Modèle année
+```{r}
+#| label: mod-fish-year
+
+m_fish_P <- glmmTMB(year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle P
+
+```{r}
+#| label: mod-fish-p
+
+m_fish_P <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle BOD 
+
+```{r}
+#| label: mod-fish-bod
+
+m_fish_BOD <- glmmTMB(
+  fish_catch ~ BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle additif 
+
+```{r}
+#| label: mod-fish-add
+
+m_fish_add <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle complet 
 
 ```{r}
 #| label: mod-fish-complet
@@ -1239,51 +1292,6 @@ m_fish_Complet <- glmmTMB(
 #| label: sum-fish-complet
 
 summary(m_fish_Complet)
-```
-
-Modèle pour explorer les effets de chaque type de nutri indépendamment du loading
-
-```{r}
-#| label: mod-fish-tot
-
-m_fishTot <- glmmTMB(
-  fish_catch ~ P_total + N_total + BOD_total + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-```{r}
-#| label: sum-fish-tot
-
-summary(m_fishTot)
-```
-
-Modèle BOD 
-
-```{r}
-#| label: mod-fish-bod
-
-m_fish_BOD <- glmmTMB(
-  fish_catch ~ BOD_municipal + BOD_industrial + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-Modèle P
-
-```{r}
-#| label: mod-fish-p
-
-m_fish_P <- glmmTMB(
-  fish_catch ~ P_municipal + P_industrial + P_other + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
 ```
 
 ###### Recherche du meilleur modèle via AIC
@@ -1351,21 +1359,13 @@ testOutliers(residus_BOD)
 Pour voir la choix de la loi voir: @sec-fish-choix-model (même conclusion pour les variables aggrégées : choix de GLMM de loi Gamma).
 
 ###### Hypothèses des modèles
-- A1 (`m_gamma_fish`) : le phosphore, l'azote et la DBO totaux ont un effet sur les captures de poissons, indépendamment de l'origine des rejets (avec l'année) ;
-- A2 (`m_add`) : mêmes effets que A1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif) ;
-- A3 (`m_int`) : l'effet d'au moins une variable (phosphore, azote, DBO ou année) diffère selon l'area (modèle avec interaction).
-
-```{r}
-#| label: mod-gamma-fish
-
-# Modèle 
-m_gamma_fish <- glmmTMB(
-  fish_catch ~ P_total + N_total + BOD_total + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
+- Ma (`m_add`) : mêmes effets que M1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif) 
+- Mb (`m_int`) : l'effet d'au moins une variable (phosphore, azote, DBO ou année) diffère selon l'area (modèle avec interaction).
+- M0 (m_fish_year) : seule la tendance temporelle compte 
+- M1 (`m_fish_PA`) : seul le phosphore a un effet sur les captures indépendamment de l'origine du rejet
+- M2 (`m_fish_BODA`) : seule la DBO a un effet sur les captures dépendamment de l'origine du rejet 
+- M3 (`m_fish_addA`) : le phosphore et la DBO influencent la richesse de facon additive, indépendamment de l'origine du rejet 
+- M4 (`m_fish_CompletA`) : tous les nutriments ont un effet sur les captures de poissons indépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année)
 
 ###### Vérification différences d'effets entre area
 
@@ -1421,6 +1421,66 @@ AIC(m_add, m_int)
 ```
 
 Modèle avec interaction meilleur (AIC = -102 vs AIC = -105)
+
+###### Création des modèles
+
+Modèle P
+
+```{r}
+#| label: mod-fish-pA
+
+m_fish_PA <- glmmTMB(
+  fish_catch ~  P_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle BOD 
+
+```{r}
+#| label: mod-fish-bodA
+
+m_fish_BODA <- glmmTMB(
+  fish_catch ~  BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle additif 
+
+```{r}
+#| label: mod-fish-addA
+
+m_fish_addA <- glmmTMB(
+  fish_catch ~  P_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle complet 
+
+```{r}
+#| label: mod-fish-completA
+
+m_fish_CompletA <- glmmTMB(
+   P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-fish-complet
+
+summary(m_fish_CompletA)
+```
 
 # Discussion
 
