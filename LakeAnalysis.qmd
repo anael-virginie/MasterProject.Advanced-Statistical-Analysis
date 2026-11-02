@@ -1118,8 +1118,107 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 - M3 (`m_fish_BOD`) : seule la DBO a un effet sur les captures, et son origine compte (DBO municipale et industrielle séparées, avec l'année) ;
 - M4 (`m_fish_P`) : seul le phosphore a un effet sur les captures, et son origine compte (les trois sources de phosphore séparées, avec l'année).
 
-###### Choix de la loi 
-Pour voir la choix de la loi voir: @sec-fish-choix-model (résultats similaire pour les variables non-agrégées).
+###### Choix du modèle {#sec-fish-choix-model}
+
+Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma.
+
+```{r}
+#| label: mod-gamma-fish
+
+# Modèle 
+m_gamma_fish <- glmmTMB(fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: res-gamma-fish
+
+# Diagnostic
+res <- simulateResiduals(m_gamma_fish)
+```
+
+```{r}
+#| label: fig-residus-gamma-fish
+#| fig-cap: "Diagnostic des résidus simulés (DHARMa) du GLMM Gamma"
+plot(res)
+```
+
+```{r}
+#| label: fig-uniformite-gamma-fish
+#| fig-cap: "Test d'uniformité des résidus du GLMM Gamma"
+
+testUniformity(res)
+```
+
+```{r}
+#| label: fig-dispersion-gamma-fish
+#| fig-cap: "Test de dispersion des résidus du GLMM Gamma"
+
+testDispersion(res)
+```
+
+Légère surdispersion détectée p = 0.048
+
+```{r}
+#| label: fig-outliers-gamma-fish
+#| fig-cap: "Test des valeurs extrêmes (outliers) du GLMM Gamma"
+
+testOutliers(res)
+```
+
+comme anticipé, on détecte des valeurs extrêmes mais celle-ci ne sont pas suffisantes pour rejeter le modele 
+
+Nous comparons ce modèle à un LME 
+
+```{r}
+#| label: mod-lme-fish
+
+# Modèle 
+m_lme_fish <- lmer(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  data = data.analyse.fish.GLMM,
+  REML = FALSE
+)
+```
+
+```{r}
+#| label: fig-diag-lme-fish
+#| fig-cap: "Diagnostic du LME : homoscédasticité (gauche) et normalité des résidus (droite)"
+#| fig-width: 10
+#| fig-height: 5
+
+# Diagnostic
+par(mfrow = c(1, 2))
+plot(
+  fitted(m_lme_fish),
+  residuals(m_lme_fish),
+  xlab = "Valeurs prédites",
+  ylab = "Résidus",
+  main = "LME : homoscédasticité"
+)
+abline(h = 0, lty = 2)
+qqnorm(residuals(m_lme_fish), main = "LME : normalité")
+qqline(residuals(m_lme_fish))
+par(mfrow = c(1, 1))
+```
+
+```{r}
+#| label: tbl-aic-gamma-lme
+#| tbl-cap: "Comparaison AIC entre le GLMM Gamma et le LME"
+
+## Comparaison AIC
+AIC(m_gamma_fish, m_lme_fish)
+```
+
+Modèle gamma large favori (AIC = -104 vs AIC = -60)
+
+Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC
+Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
+attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
 
 ###### Création des modèles
 Modèle pour explorer les effets de chaque type de loading
@@ -1246,9 +1345,10 @@ surdispersion reste à vérifier
 testOutliers(residus_BOD)
 ```
 
-
 ##### Variables agrégées {#sec-fish-agregees}
-Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma
+
+###### Choix de la loi 
+Pour voir la choix de la loi voir: @sec-fish-choix-model (même conclusion pour les variables aggrégées : choix de GLMM de loi Gamma).
 
 ###### Hypothèses des modèles
 - A1 (`m_gamma_fish`) : le phosphore, l'azote et la DBO totaux ont un effet sur les captures de poissons, indépendamment de l'origine des rejets (avec l'année) ;
@@ -1266,95 +1366,6 @@ m_gamma_fish <- glmmTMB(
   data = data.analyse.fish.GLMM
 )
 ```
-
-###### Choix du modèle {#sec-fish-choix-model}
-
-```{r}
-#| label: res-gamma-fish
-
-# Diagnostic
-res <- simulateResiduals(m_gamma_fish)
-```
-
-```{r}
-#| label: fig-residus-gamma-fish
-#| fig-cap: "Diagnostic des résidus simulés (DHARMa) du GLMM Gamma"
-plot(res)
-```
-
-```{r}
-#| label: fig-uniformite-gamma-fish
-#| fig-cap: "Test d'uniformité des résidus du GLMM Gamma"
-
-testUniformity(res)
-```
-
-```{r}
-#| label: fig-dispersion-gamma-fish
-#| fig-cap: "Test de dispersion des résidus du GLMM Gamma"
-
-testDispersion(res)
-```
-
-Légère surdispersion détectée p = 0.048
-
-```{r}
-#| label: fig-outliers-gamma-fish
-#| fig-cap: "Test des valeurs extrêmes (outliers) du GLMM Gamma"
-
-testOutliers(res)
-```
-
-comme anticipé, on détecte des valeurs extrêmes mais celle-ci ne sont pas suffisantes pour rejeter le modele 
-
-Nous comparons ce modèle à un LME 
-
-```{r}
-#| label: mod-lme-fish
-
-# Modèle 
-m_lme_fish <- lmer(
-  fish_catch ~ P_total + N_total + BOD_total + year +
-    (1 | sub_basin),
-  data = data.analyse.fish.GLMM,
-  REML = FALSE
-)
-```
-
-```{r}
-#| label: fig-diag-lme-fish
-#| fig-cap: "Diagnostic du LME : homoscédasticité (gauche) et normalité des résidus (droite)"
-#| fig-width: 10
-#| fig-height: 5
-
-# Diagnostic
-par(mfrow = c(1, 2))
-plot(
-  fitted(m_lme_fish),
-  residuals(m_lme_fish),
-  xlab = "Valeurs prédites",
-  ylab = "Résidus",
-  main = "LME : homoscédasticité"
-)
-abline(h = 0, lty = 2)
-qqnorm(residuals(m_lme_fish), main = "LME : normalité")
-qqline(residuals(m_lme_fish))
-par(mfrow = c(1, 1))
-```
-
-```{r}
-#| label: tbl-aic-gamma-lme
-#| tbl-cap: "Comparaison AIC entre le GLMM Gamma et le LME"
-
-## Comparaison AIC
-AIC(m_gamma_fish, m_lme_fish)
-```
-
-Modèle gamma large favori (AIC = -104 vs AIC = -60)
-
-Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC
-Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
-attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
 
 ###### Vérification différences d'effets entre area
 
