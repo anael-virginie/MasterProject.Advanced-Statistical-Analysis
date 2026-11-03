@@ -1120,7 +1120,7 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 - M3 (`m_fish_add`) : le phosphore et la DBO influencent la richesse de facon additive, dépendamment de l'origine du rejet 
 - M4 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons dépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année)
 
-###### Choix du modèle {#sec-fish-choix-model}
+###### Choix de la loi {#sec-fish-choix-model}
 
 Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma.
 
@@ -1171,7 +1171,7 @@ Légère surdispersion détectée p = 0.048
 testOutliers(res)
 ```
 
-comme anticipé, on détecte des valeurs extrêmes mais celle-ci ne sont pas suffisantes pour rejeter le modele 
+Comme anticipé, on détecte une valeurs extrême mais celle-ci n'est pas suffisante pour rejeter le modele 
 
 Nous comparons ce modèle à un LME 
 
@@ -1216,7 +1216,7 @@ par(mfrow = c(1, 1))
 AIC(m_gamma_fish, m_lme_fish)
 ```
 
-Modèle gamma large favori (AIC = -104 vs AIC = -60)
+Modèle gamma large favori (AIC = -104 vs AIC = -57)
 
 Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC
 Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
