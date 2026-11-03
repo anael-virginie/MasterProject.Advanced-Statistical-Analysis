@@ -1313,13 +1313,7 @@ m_fish_Complet <- glmmTMB(
 )
 ```
 
-```{r}
-#| label: sum-fish-complet
-
-summary(m_fish_Complet)
-```
-
-###### Recherche du meilleur modèle via AIC
+###### Recherche du meilleur modèle via deltaAIC
 
 Comparaison AIC 
 
@@ -1342,53 +1336,86 @@ models_fish
 
 Meilleur model = m_fish_NB
 
+
 ###### Diagnostic du modèle choisi
 
 ```{r}
-#| label: res-NB
+#| label: diag-NB
 
 library(DHARMa)
 
+# 1. Simulation des résidus
 residus_NB <- simulateResiduals(m_fish_NB, n = 1000)
-```
 
-```{r}
-#| label: fig-residus-NB
-
-# Simulation des résidus
-residus_NB <- simulateResiduals(m_fish_NB, n = 1000)
-# Diagnostic graphique des résidus
+# 2. Distribution des résidus et résidus selon les valeurs prédites
 plot(residus_NB)
+
+# 3. Tests statistiques
 # Test d'uniformité des résidus
 testUniformity(residus_NB)
 # Test de dispersion des résidus
 testDispersion(residus_NB) # dispersion = 1.6916, p-value = 0.018
 # Test des valeurs extrêmes (outliers)
 testOutliers(residus_NB)
+
+# 4. Résidus selon les variables explicatives
+# Données conservées lors de l'ajustement du modèle
+data_NB <- model.frame(m_fish_NB)
+# Vérifier le nombre d'observations
+nrow(data_NB)
+length(residus_NB$scaledResiduals)
+plotResiduals(residus_NB, form = data_NB$N_municipal) # pas de déviation significative
+plotResiduals(residus_NB, form = data_NB$BOD_municipal) # écarts locaux mais pas de déviation significative des quantiles 
+plotResiduals(residus_NB, form = data_NB$BOD_industrial) # pas de déviation significative
+plotResiduals(residus_NB, form = data_NB$area) # pas d'hétérogénéité significative de la variance entre les deux zones 
+
+# 5. Multicolinéarité
+check_collinearity(m_fish_NB) # pas de pb de multicolinéarité  
 ```
+###### Analyse des coefficients du modèle choisi
 
 ```{r}
-#| label: fig-residus-NBfinal
+#| label: mod-fish-NB
+summary(m_fish_NB)
+```
 
-m_fish_NB_final <- glmmTMB(
-  fish_catch ~ N_municipal + BOD_municipal + BOD_industrial +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
+###### Représentation graphique finale du modèle choisi
+
+```{r}
+# Réprésentation graphique 
+install.packages('ggeffects')
+library(ggeffects)
+library(ggplot2)
+library(dplyr)
+
+# Prédictions pour chaque variable explicative
+pred_N <- ggpredict(m_fish_NB, terms = "N_municipal")
+pred_BOD_m <- ggpredict(m_fish_NB, terms = "BOD_municipal")
+pred_BOD_i <- ggpredict(m_fish_NB, terms = "BOD_industrial")
+
+# Regroupement des prédictions
+predictions <- bind_rows(
+  as.data.frame(pred_N) %>% mutate(variable = "Azote municipal"),
+  as.data.frame(pred_BOD_m) %>% mutate(variable = "DBO municipale"),
+  as.data.frame(pred_BOD_i) %>% mutate(variable = "DBO industrielle")
 )
-summary(m_fish_NB_final) # on retire l'effet aleatoire de year et area pour reduire la surdispersion 
-# meilleur AIC que m_fish_NB : -101.8 vs -101
 
-# Simulation des résidus
-residus_NB_final <- simulateResiduals(m_fish_NB_final, n = 1000)
-# Diagnostic graphique des résidus
-plot(residus_NB_final)
-# Test d'uniformité des résidus
-testUniformity(residus_NB_final)
-# Test de dispersion des résidus
-testDispersion(residus_NB_final) # dispersion = 1.4983, p-value = 0.054
-# Test des valeurs extrêmes (outliers)
-testOutliers(residus_NB_final)   
+# Graphique
+ggplot(predictions, aes(x = x, y = predicted)) +
+  geom_ribbon(
+    aes(ymin = conf.low, ymax = conf.high),
+    alpha = 0.2
+  ) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ variable, scales = "free_x") +
+  labs(
+    x = "Concentration du nutriment",
+    y = "Captures de poissons prédites",
+    title = "",
+    subtitle = "",
+    caption = "Prédictions marginales et intervalles de confiance à 95 %"
+  ) +
+  theme_bw()
 ```
 
 # Discussion
