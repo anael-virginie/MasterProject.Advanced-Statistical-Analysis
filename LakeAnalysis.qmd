@@ -1314,6 +1314,45 @@ data.analyse.fish <- data.analyse %>%
   filter(!is.na(fish_catch)) %>%
   select(-phyto_richness)
 
+# ------------------------------------ #
+### II. DATA SET ONE-TABLE AND SUMMED ###
+# Jointure pour les analyses Y ~ X (avec NA possibles et sans retrait des variables corrélés)
+
+#PHYTO
+{
+  data.nutriment.cor <- data.nutriment
+  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  data.analyse.GLMM <- data.biotic %>%
+    left_join(
+      data.nutriment.cor,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    )
+  stopifnot(nrow(data.analyse.GLMM) == nrow(data.biotic))
+  rm(data.nutriment.cor)
+}
+
+data.analyse.phy.GLMM <- data.analyse.GLMM %>%
+  # 1. Création des variables agrégées
+  mutate(
+    P_total = P_municipal + P_industrial + P_other,
+    N_total = N_municipal + N_industrial + N_other,
+    BOD_total = BOD_municipal + BOD_industrial
+  ) %>% 
+  # 2. Retrait des colonnes non désirées
+  select(-N_other, -N_industrial, -fish_catch) %>% 
+  # 3. Standardisation de toutes les variables sélectionnées
+  mutate(
+    across(
+      c(P_municipal, P_industrial, P_other,
+        N_municipal,
+        BOD_municipal, BOD_industrial,
+        P_total, N_total, BOD_total),
+      ~ as.numeric(scale(.x))))
+
+# FISH
+
+
 ### 2️⃣ DATA SET AVEC IMPUTATION ###
 # Jointure avec les nutriments imputés
 data.analyse.impute <- data.biotic %>%
@@ -1530,80 +1569,11 @@ Cette partie modélise la richesse du phytoplancton avec des GLM et des GLMM. No
 ### Préparation des données et cadre commun
 
 #### Jeu de données et standardisation
-
 Le jeu de modélisation contient à la fois les sources séparées et leurs totaux, pour que tous les modèles soient ajustés sur exactement les mêmes observations. Le phosphore total (`P_total`) est la somme de `P_municipal`, `P_industrial` et `P_other`, et la DBO totale (`BOD_total`) est la somme de `BOD_municipal` et `BOD_industrial`.
 
 Toutes les variables explicatives sont centrées-réduites, c'est-à-dire que l'on calcule $z = (x - \bar{x}) / s$ où $s$ est l'écart-type. Chaque variable s'exprime ainsi en écarts-types (zéro correspond à la valeur moyenne). Cela ne change ni l'AIC, ni les p-values, ni les prédictions, mais cela met toutes les variables sur la même échelle, ce qui permet de comparer la taille des effets, et cela facilite la convergence des modèles.
 
 L'année est traitée comme une variable numérique et non comme un facteur, car nous cherchons à mesurer une tendance globale au fil du temps. Un facteur estimerait un effet distinct pour chaque année, soit plus de 20 paramètres pour environ 117 observations. Elle est centrée-réduite pour les mêmes raisons que les autres variables (`yr`).
-
-```{r}
-#| label: jeu-complet-colinearite
-#| echo: false
-#| message: false
-#| warning: false
-
-# Jeu complet (avec toutes les sources d'azote) : sert au VIF et à la préparation des modèles
-data.analyse.complet = data.biotic %>%
-  filter(!is.na(phyto_richness)) %>%
-  left_join(data.nutriment, by = c("year", "area"), relationship = "many-to-one")
-
-# Variables retenues dans les modèles principaux (sans l'azote)
-vars.sans.N = setdiff(variables.nutriments, grep("^N_", variables.nutriments, value = TRUE))
-```
-
-```{r}
-#| label: preparation-glmm-phyto
-#| echo: false
-#| message: false
-#| warning: false
-
-data.glmm.phyto = data.analyse.complet %>%
-  mutate(
-    P_total   = P_municipal + P_industrial + P_other,
-    BOD_total = BOD_municipal + BOD_industrial,
-    N_total   = N_municipal + N_industrial + N_other
-  ) %>%
-  drop_na(all_of(vars.sans.N), P_total, BOD_total) %>%
-  mutate(
-    sub_basin = droplevels(sub_basin),
-    area      = droplevels(area),
-    zP = as.numeric(scale(P_total)),
-    zB = as.numeric(scale(BOD_total)),
-    yr = as.numeric(scale(year))
-  )
-
-# Même standardisation, mais propre à chaque secteur (modèles séparés)
-data.secteur = data.glmm.phyto %>%
-  group_by(area) %>%
-  mutate(
-    zP = as.numeric(scale(P_total)),
-    zB = as.numeric(scale(BOD_total)),
-    yr = as.numeric(scale(year)),
-    across(all_of(vars.sans.N), ~ as.numeric(scale(.x)), .names = "z_{.col}")
-  ) %>%
-  ungroup()
-secteurs = levels(data.secteur$area)
-
-# Fonctions utilitaires
-fmt.p = function(p) sapply(p, function(x) format.pval(x, digits = 3, eps = 0.001))
-dispersion = function(m) sum(residuals(m, type = "pearson")^2) / df.residual(m)
-tab.effets = function(m, nom = NULL) {
-  s = summary(m)$coefficients$cond
-  s = s[rownames(s) != "(Intercept)", , drop = FALSE]
-  out = data.frame(
-    Terme = rownames(s),
-    `Effet (%)` = round(100 * (exp(s[, 1]) - 1), 1),
-    p = fmt.p(s[, 4]),
-    check.names = FALSE
-  )
-  if (!is.null(nom)) out = cbind(Modèle = nom, out)
-  rownames(out) = NULL
-  out
-}
-```
-
-Le jeu de modélisation contient `r nrow(data.glmm.phyto)` observations sur `r nrow(data.analyse.phyto)`.
 
 #### Choix de la loi
 
@@ -1612,312 +1582,176 @@ La richesse est un nombre de taxons, donc une variable quantitative discrète. O
 Le principe, Poisson puis binomiale négative en cas de surdispersion, est présenté dans le cours (diapositive « Poisson model and overdispersion »). Les seuils chiffrés sont des repères usuels (par exemple Zuur et al. 2009) et ne viennent pas du cours. Tolonen et al. (2014) font de la même façon, avec une binomiale négative pour la richesse du phytoplancton, dont la variance dépasse nettement la moyenne, et une loi de Poisson pour celle du zooplancton, dont la dispersion est de 1,1.
 
 ```{r}
+#| label: phy-loi
+#| echo: true
+disp_poisson <- check_overdispersion(M7.phy.poisson)$dispersion_ratio
+disp_nbiom2  <- check_overdispersion(M7.phy.nbiom2)$dispersion_ratio
+
+M7.phy.poisson = glmmTMB(phyto_richness ~ 
+                           P_municipal + P_industrial + P_other +
+                           N_municipal + 
+                           BOD_municipal + BOD_industrial +
+                           (1 | year) + 
+                           (1 | sub_basin),
+                          data = data.analyse.phy.GLMM,
+                         family = poisson)
+M7.phy.nbiom2  = glmmTMB(phyto_richness ~ 
+                           P_municipal + P_industrial + P_other +
+                           N_municipal + 
+                           BOD_municipal + BOD_industrial +
+                           (1 | year) + 
+                           (1 | sub_basin),
+                          data = data.analyse.phy.GLMM,
+                         family = nbinom2)
+```
+
+La dispersion de Poisson est de `r round(disp_poisson, 2)`, ce qui la place dans la zone grise, et les AIC sont proches. Poisson serait donc défendable. Nous gardons quand même la binomiale négative, plus prudente et utilisée par Tolonen et al. (2014) pour la richesse du phytoplancton. Sa dispersion (`r round(disp_nbiom2, 2)`) sert seulement de vérification, elle revient près de 1, donc la surdispersion est bien absorbée.
+
+```{r}
 #| label: tbl-choix-loi
 #| tbl-cap: "Comparaison des lois sur le modèle commun"
 #| echo: false
 #| message: false
 #| warning: false
 
-modele.poisson = glmmTMB(phyto_richness ~ zP + zB + yr + (1 | sub_basin),
-                          data = data.glmm.phyto, family = poisson)
-modele.commun  = glmmTMB(phyto_richness ~ zP + zB + yr + (1 | sub_basin),
-                          data = data.glmm.phyto, family = nbinom2)
 
 tibble(
   Loi = c("Poisson", "Binomiale négative"),
-  AIC = c(AIC(modele.poisson), AIC(modele.commun)),
-  Dispersion = c(dispersion(modele.poisson), dispersion(modele.commun))
-) %>% kable(digits = 2)
+  AIC = c(AIC(M7.phy.poisson), AIC(M7.phy.nbiom2)),
+  Dispersion = c(disp_poisson, disp_nbiom2)
+) %>% 
+  mutate(delta_AIC = AIC - min(AIC)) %>% 
+  select(Loi, AIC, delta_AIC, Dispersion) %>% 
+  kable(digits = 2, col.names = c("Loi", "AIC", "ΔAIC", "Dispersion"))
 ```
 
-La dispersion de Poisson est de `r round(dispersion(modele.poisson), 2)`, ce qui la place dans la zone grise, et les AIC sont proches. Poisson serait donc défendable. Nous gardons quand même la binomiale négative, plus prudente et utilisée par Tolonen et al. (2014) pour la richesse du phytoplancton. Sa dispersion (`r round(dispersion(modele.commun), 2)`) sert seulement de vérification, elle revient près de 1, donc la surdispersion est bien absorbée.
 
-#### Modèle de base sur tous les secteurs
+### Variables non-agrégées
 
-Le premier modèle ne distingue pas les secteurs et tient compte du sous-bassin avec un effet aléatoire `(1 | sub_basin)`. Cela revient à dire que chaque sous-bassin a sa propre richesse moyenne de départ, tirée dans une loi normale commune, et que ses mesures successives ne sont pas indépendantes. C'est donc un GLMM.
-
-$$\text{richesse}_{ij} \sim \text{NB}(\mu_{ij}), \quad \log \mu_{ij} = \beta_0 + \beta_1\, zP_{ij} + \beta_2\, zB_{ij} + \beta_3\, yr_{ij} + b_j, \quad b_j \sim \mathcal{N}(0, \sigma^2_{sb})$$
-
+#### Création des modèles
 ```{r}
-#| label: tbl-modele-commun
-#| tbl-cap: "Modèle commun aux deux secteurs : effet de chaque variable (en % de variation de la richesse pour +1 écart-type)"
-#| echo: false
-#| message: false
-#| warning: false
-
-kable(tab.effets(modele.commun))
-```
-
-```{r}
-#| label: variance-aleatoire
-#| echo: false
-#| message: false
-#| warning: false
-
-sd.sb = attr(VarCorr(modele.commun)$cond$sub_basin, "stddev")
-```
-
-Dans ce modèle, l'année domine (+`r round(100 * (exp(fixef(modele.commun)$cond["yr"]) - 1), 0)` % par écart-type) et la DBO a un effet positif. En revanche, l'écart-type de l'effet aléatoire est pratiquement nul (`r format(sd.sb, digits = 2)`), donc une fois les variables prises en compte les sous-bassins ne diffèrent pas entre eux. Ce modèle suppose aussi que le Nord et le Centre réagissent de la même façon, ce que nous testons maintenant.
-
-#### Pourquoi séparer le Nord et le Centre ?
-
-Nous comparons un modèle où les effets sont les mêmes dans les deux secteurs (`area + variables`) à un modèle où chaque variable a un effet propre à chaque secteur (`area * variables`).
-
-```{r}
-#| label: tbl-test-secteur
-#| tbl-cap: "Test de l'interaction entre le secteur et les variables (test du rapport de vraisemblance)"
-#| echo: false
-#| message: false
-#| warning: false
-
-modele.area  = update(modele.commun, . ~ . + area)
-modele.inter = update(modele.commun, . ~ area * (zP + zB + yr) + (1 | sub_basin))
-comp = anova(modele.area, modele.inter)
-
-tibble(
-  Modèle = c("area + zP + zB + yr", "area * (zP + zB + yr)"),
-  AIC = c(AIC(modele.area), AIC(modele.inter)),
-  p = c("", fmt.p(comp$`Pr(>Chisq)`[2]))
-) %>% kable(digits = 1)
-```
-
-Laisser les effets varier selon le secteur améliore significativement le modèle (p = `r fmt.p(comp$"Pr(>Chisq)"[2])`). Les deux secteurs ne réagissent donc pas de la même façon et nous les modélisons séparément.
-
-Nous refaisons ensuite le choix de la loi dans chaque secteur. La dispersion de Poisson observée sur tout le lac (zone grise) vient en partie du mélange de deux secteurs qui n'ont pas la même richesse moyenne. Nous gardons la même règle, Poisson si la dispersion est inférieure ou égale à 1,2 et binomiale négative au-delà, la zone grise entre 1,2 et 1,5 étant tranchée en faveur de la prudence.
-
-```{r}
-#| label: tbl-loi-secteur
-#| tbl-cap: "Dispersion du modèle de Poisson dans chaque secteur et loi retenue"
-#| echo: false
-#| message: false
-#| warning: false
-
-disp.secteur = sapply(secteurs, function(a) {
-  dispersion(glmmTMB(phyto_richness ~ zP + zB + yr,
-                     data = filter(data.secteur, area == a), family = poisson))
-})
-familles = lapply(disp.secteur, function(x) if (x <= 1.2) poisson else nbinom2)
-names(familles) = secteurs
-
-tibble(
-  Secteur = secteurs,
-  `Dispersion (Poisson)` = disp.secteur,
-  `Loi retenue` = ifelse(disp.secteur <= 1.2, "Poisson", "Binomiale négative")
-) %>% kable(digits = 2)
-```
-
-Au Centre la dispersion est inférieure à 1, il n'y a donc pas de surdispersion, et la binomiale négative se ramène de toute façon à une loi de Poisson (son paramètre de dispersion tend vers l'infini, ce qui rend l'ajustement instable). Nous utilisons donc une loi de Poisson au Centre. Au Nord, la dispersion de Poisson est de `r round(disp.secteur[2], 2)`, dans la zone grise, et nous gardons la binomiale négative, plus prudente.
-
-Il reste à savoir si l'effet aléatoire du sous-bassin est utile dans chaque secteur. Chaque secteur ne compte que trois sous-bassins, ce qui est peu pour estimer une variance, donc nous testons directement s'il apporte quelque chose en comparant un GLM simple à un GLMM.
-
-```{r}
-#| label: tbl-test-sousbassin
-#| tbl-cap: "Test de l'effet aléatoire du sous-bassin dans chaque secteur"
-#| echo: false
-#| message: false
-#| warning: false
-
-test.sb = lapply(secteurs, function(a) {
-  d = filter(data.secteur, area == a)
-  glm = glmmTMB(phyto_richness ~ zP + zB + yr, data = d, family = familles[[a]])
-  mix = suppressWarnings(
-    glmmTMB(phyto_richness ~ zP + zB + yr + (1 | sub_basin), data = d, family = familles[[a]]))
-  data.frame(Secteur = a, n = nrow(d), `Sous-bassins` = nlevels(droplevels(d$sub_basin)),
-             p = fmt.p(anova(glm, mix)$`Pr(>Chisq)`[2]),
-             check.names = FALSE)
-}) %>% bind_rows()
-kable(test.sb)
-```
-
-Dans les deux secteurs, l'effet aléatoire n'améliore pas le modèle. Nous utilisons donc un GLM sans effet aléatoire par secteur (Poisson au Centre, binomiale négative au Nord), avec les variables standardisées au sein du secteur. Le modèle final est un GLM, le GLMM ne servant qu'à justifier ce choix.
-
-```{r}
-#| label: outils-multimodele
-#| echo: false
-#| message: false
-#| warning: false
-
-# Modèle avec les cinq sources séparées (partie A)
-f.sources = phyto_richness ~ yr + z_P_municipal + z_P_industrial + z_P_other +
-  z_BOD_municipal + z_BOD_industrial
-
-# Hypothèses de la partie A (sources séparées) et de la partie B (totaux)
-candidats.A = list(
-  "M6 : sources séparées"       = f.sources,
-  "M7 : P séparé + année"       = phyto_richness ~ yr + z_P_municipal + z_P_industrial + z_P_other,
-  "M8 : DBO séparée + année"    = phyto_richness ~ yr + z_BOD_municipal + z_BOD_industrial
-)
-candidats.B = list(
-  "M0 : année seule"            = phyto_richness ~ yr,
-  "M1 : année + P"              = phyto_richness ~ yr + zP,
-  "M2 : année + DBO"            = phyto_richness ~ yr + zB,
-  "M3 : année + P + DBO"        = phyto_richness ~ yr + zP + zB,
-  "M4 : année + P x DBO"        = phyto_richness ~ yr + zP * zB,
-  "M5 : (P + DBO) x année"      = phyto_richness ~ yr * (zP + zB)
+# M1 : Azote municipal seul
+M1.phy <- glmmTMB(
+  phyto_richness ~ N_municipal + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
 )
 
-# Ajuste une liste de modèles dans chaque secteur et calcule AIC, ΔAIC et poids d'Akaike
-classer = function(liste) {
-  res = lapply(secteurs, function(a) {
-    d  = filter(data.secteur, area == a)
-    ms = lapply(liste, function(f) suppressWarnings(glmmTMB(f, data = d, family = familles[[a]])))
-    ok = sapply(ms, function(m) isTRUE(m$sdr$pdHess))   # modèle convergé ?
-    aic = ifelse(ok, sapply(ms, AIC), NA_real_)
-    dl  = aic - min(aic, na.rm = TRUE)
-    w   = ifelse(ok, exp(-dl / 2) / sum(exp(-dl / 2), na.rm = TRUE), NA_real_)
-    list(ms = ms, ok = ok, dl = dl, w = w,
-         tab = data.frame(Modèle = names(ms), `Paramètres` = sapply(ms, function(m) attr(logLik(m), "df")),
-                          AIC = round(aic, 1), `ΔAIC` = round(dl, 1), `Poids` = round(w, 2),
-                          `Convergence` = ifelse(ok, "oui", "non (exclu)"),
-                          check.names = FALSE, row.names = NULL))
-  })
-  names(res) = secteurs
-  res
-}
+# M2 : Sources de BOD (municipal + industriel)
+M2.phy <- glmmTMB(
+  phyto_richness ~ BOD_municipal + BOD_industrial + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
 
-# Affiche un tableau par secteur (colonnes choisies)
-afficher = function(res, colonnes) {
-  for (a in secteurs) {
-    cat("\n\n", a, " :\n\n", sep = "")
-    print(kable(res[[a]]$tab[, colonnes]))
-  }
-}
+# M3 : Sources de Phosphore (municipal + industriel + autre)
+M3.phy <- glmmTMB(
+  phyto_richness ~ P_municipal + P_industrial + P_other + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
+
+# M4 : Phosphore et BOD
+M4.phy <- glmmTMB(
+  phyto_richness ~ P_municipal + P_industrial + P_other + 
+    BOD_municipal + BOD_industrial + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
+
+# M5 : Phosphore et Azote municipal
+M5.phy <- glmmTMB(
+  phyto_richness ~ P_municipal + P_industrial + P_other + 
+    N_municipal + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
+
+# M6 : BOD et Azote municipal
+M6.phy <- glmmTMB(
+  phyto_richness ~ BOD_municipal + BOD_industrial + 
+    N_municipal + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
+
+# M7 : Modèle complet (toutes les sources décomposées)
+M7.phy <- glmmTMB(
+  phyto_richness ~ P_municipal + P_industrial + P_other + 
+    N_municipal + 
+    BOD_municipal + BOD_industrial + 
+    (1 | year) + (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
+
+
 ```
 
-### Partie A : sources de rejets séparées (modèles non agrégés)
-
-#### Hypothèses
-
-Dans cette partie, l'origine des rejets peut compter, c'est pourquoi nous gardons séparés le phosphore municipal, industriel et autre, ainsi que la DBO municipale et industrielle. L'azote est écarté (voir la section @sec-correlation et la partie sur la colinéarité ci-dessous). Les hypothèses sont les suivantes, avec l'année dans tous les modèles.
-
-- M6 : l'origine des rejets compte, pour le phosphore et pour la DBO (les cinq sources séparées) ;
-- M7 : seul le phosphore compte, et son origine aussi (les trois sources de phosphore séparées) ;
-- M8 : seule la DBO compte, et son origine aussi (les deux sources de DBO séparées).
-
-L'année est conservée dans tous les modèles, car sans elle les comparaisons de ΔAIC n'auraient pas de sens (voir la partie sur le rôle de l'année plus bas).
-
-#### Choix de la loi
-
-Nous gardons la même règle que dans la partie commune, avec une loi de Poisson si la dispersion est inférieure ou égale à 1,2 et une binomiale négative au-delà. Nous vérifions que le choix fait pour les totaux convient aussi au modèle à cinq sources, en calculant sa dispersion de Poisson dans chaque secteur.
+#### Recherche du meilleur modèle via AIC
+La sélection de modèles basée sur l'AIC indique que le modèle complet M7 ($AIC = 831.7$, $w_i = 0.488$), incluant l'ensemble des sources décomposées de phosphore, d'azote et de DBO, présente le meilleur ajustement aux données. Il est immédiatement suivi par le modèle M5 ($AIC = 831.9$, $\Delta AIC = 0.18$, $w_i = 0.445$), excluant la DBO. Ces deux modèles cumulés rassemblent plus de 93 % du poids d'Akaike. En revanche, les modèles n'incluant pas conjointement le phosphore et l'azote (M1, M2, M3, M4, M6) affichent un $\Delta AIC > 5$ et sont écartés. Le modèle **M7** et **M5** sont ainsi retenu ayant les deux un deltaAIC < 2.
 
 ```{r}
-#| label: tbl-loi-sources
-#| tbl-cap: "Dispersion du modèle de Poisson à cinq sources dans chaque secteur"
-#| echo: false
-#| message: false
-#| warning: false
+#| label: tbl-model-sel-phy
+#| tbl-cap: "Sélection de modèles par AIC (P, BOD et modèle complet)"
 
-disp.sources = sapply(secteurs, function(a) {
-  dispersion(suppressWarnings(glmmTMB(f.sources, data = filter(data.secteur, area == a), family = poisson)))
-})
-tibble(
-  Secteur = secteurs,
-  `Dispersion (Poisson)` = disp.sources,
-  `Loi retenue` = ifelse(disp.sources <= 1.2, "Poisson", "Binomiale négative")
-) %>% kable(digits = 2)
+models_fish <- MuMIn::model.sel(
+  M1.phy,
+  M2.phy,
+  M3.phy,
+  M4.phy,
+  M5.phy,
+  M6.phy,
+  M7.phy,
+  rank = "AIC"
+)
+
+as.data.frame(models_fish) %>%
+  tibble::rownames_to_column(var = "Modèle") %>%
+  select(Modèle, df, logLik, AIC, delta, weight) %>%
+  mutate(
+    logLik = round(logLik, 2),
+    AIC = round(AIC, 2),
+    delta = round(delta, 2),
+    weight = round(weight, 3)
+  ) %>%
+  kable(
+    col.names = c("Modèle", "K (df)", "Log-Likelihood", "AIC", "ΔAIC", "Poids d'Akaike (wᵢ)"),
+    align = c("l", "c", "r", "r", "r", "r"),
+    caption = "Tableau de sélection des modèles de Poisson (GLMM)"
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  row_spec(1:2, bold = TRUE, background = "#e8f4ea") # Surligne M7 et M5 (ΔAIC < 2)
 ```
 
-La dispersion est de `r round(disp.sources[1], 2)` au Centre et de `r round(disp.sources[2], 2)` au Nord, des valeurs presque identiques à celles du modèle avec les totaux (@tbl-loi-secteur). Nous gardons donc la même loi dans chaque secteur (Poisson au Centre, binomiale négative au Nord), ce qui permet de comparer tous les modèles entre eux avec l'AIC.
-
-#### Colinéarité (VIF)
-
-La section @sec-correlation a regardé les corrélations deux à deux entre les apports. Pour voir si une variable est expliquée par l'ensemble des autres, y compris le temps, nous calculons le facteur d'inflation de la variance (VIF) dans un modèle qui contient les apports et l'année. On considère en général que la colinéarité est faible sous 5, modérée entre 5 et 10 et forte au-dessus de 10.
+POur choisir entre les deux modèles, et ne pas réaliser du model averaging, nous alons vérfiier la multicolinéarité de nos modeles choisis. Nous pouvons bien voir que le modele M5 a une colinéarité moins élever, et pourtant nous choisisant celui-ci pour contineur l'analyse.
 
 ```{r}
-#| label: tbl-vif-sources
-#| tbl-cap: "VIF du modèle avec les huit apports et l'année (à gauche) et sans l'azote (à droite)"
-#| echo: false
-#| message: false
-#| warning: false
+#| label: tbl-model-sel-phy
+#| tbl-cap: "Sélection de modèles par AIC (P, BOD et modèle complet)"
 
-standardiser = function(d, vars) {
-  d %>% mutate(across(all_of(vars), ~ as.numeric(scale(.x))))
-}
-vif.table = function(vars) {
-  d = data.analyse.complet %>% drop_na(all_of(vars)) %>% standardiser(c(vars, "year"))
-  m = glmmTMB(reformulate(c(vars, "year", "(1 | sub_basin)"), "phyto_richness"),
-               data = d, family = nbinom2)
-  v = as.data.frame(check_collinearity(m))[, c("Term", "VIF")]
-  v$VIF = round(v$VIF, 1)
-  list(vif = v, n = nrow(d), aic = AIC(m))
-}
-
-vif.8 = vif.table(variables.nutriments)
-vif.5 = vif.table(vars.sans.N)
-
-kable(list(vif.8$vif, vif.5$vif), caption = NULL)
+check_collinearity(M7.phy)
+check_collinearity(M5.phy)
 ```
 
-Avec les huit apports, plusieurs VIF dépassent 10 (jusqu'à `r max(vif.8$vif$VIF)`), donc les coefficients de chaque apport ne peuvent pas être interprétés séparément. Les VIF les plus élevés sont ceux de `N_other` et `P_other`, ce qui confirme le choix fait dans la section @sec-correlation d'écarter `N_industrial` et `N_other`, car ils sont corrélés au phosphore et ont beaucoup de valeurs manquantes (`r sum(is.na(data.nutriment$N_other))` sur `r nrow(data.nutriment)`, soit `r round(100 * mean(is.na(data.nutriment$N_other)), 1)` %). Cela ne veut pas dire que l'azote n'a pas d'importance écologique, nous privilégions simplement le phosphore, qui est en général le nutriment limitant dans les lacs boréaux.
 
-`N_municipal` a un VIF faible mais elle compte 17 valeurs manquantes, ce qui fait perdre 3 observations de richesse. Nous la laissons donc hors des modèles principaux et nous testons son apport à part, dans la partie sur l'azote municipal. Sans l'azote, les VIF baissent mais restent modérés (jusqu'à `r max(vif.5$vif$VIF)`), parce que les sources de phosphore et de DBO varient ensemble et varient aussi avec l'année. Nous ajustons donc d'abord les modèles avec les sources séparées (cette partie), puis avec des totaux regroupés (partie B), et nous comparons les deux.
+### Variables agrégées
 
-Nous regardons aussi le VIF du modèle à cinq sources dans chaque secteur, avec les variables standardisées au sein du secteur.
+######################################################################
 
-```{r}
-#| label: tbl-vif-sources-secteur
-#| tbl-cap: "VIF du modèle avec les cinq sources séparées et l'année dans chaque secteur"
-#| echo: false
-#| message: false
-#| warning: false
 
-modeles.sources = lapply(secteurs, function(a) {
-  suppressWarnings(glmmTMB(f.sources, data = filter(data.secteur, area == a), family = familles[[a]]))
-})
-names(modeles.sources) = secteurs
-
-vif.sources = lapply(secteurs, function(a) {
-  v = as.data.frame(check_collinearity(modeles.sources[[a]]))[, c("Term", "VIF")]
-  v$VIF = round(v$VIF, 1)
-  names(v)[2] = a
-  v
-}) %>% reduce(left_join, by = "Term")
-kable(vif.sources)
-```
-
-Sans regroupement les VIF sont élevés dans chaque secteur (jusqu'à `r max(vif.sources[, -1])`), ce qui signifie que les coefficients de chaque source ne peuvent pas être lus séparément.
 
 #### Exploration des modèles
 
-Nous ajustons dans chaque secteur les trois modèles M6, M7 et M8. Le tableau suivant donne leur nombre de paramètres et leur AIC, puis les effets estimés du modèle à cinq sources (M6).
-
-```{r}
-#| label: tbl-exploration-A
-#| results: asis
-#| echo: false
-#| message: false
-#| warning: false
-
-res.A = classer(candidats.A)
-afficher(res.A, c("Modèle", "Paramètres", "AIC", "Convergence"))
-```
-
-```{r}
-#| label: tbl-sans-regroupement
-#| tbl-cap: "Modèle avec les cinq sources séparées (M6) : effets en % de variation de la richesse pour +1 écart-type"
-#| echo: false
-#| message: false
-#| warning: false
-
-tab.sources = lapply(secteurs, function(a) cbind(Secteur = a, tab.effets(modeles.sources[[a]]))) %>% bind_rows()
-kable(tab.sources)
-```
-
-Au Centre, les coefficients du phosphore municipal et de la DBO municipale se compensent, ce qui les rend ininterprétables. Une seule source ressort, la DBO industrielle au Centre, et au Nord seule l'année est significative.
-
-#### Choix du meilleur modèle
-
-```{r}
-#| label: tbl-classement-A
-#| results: asis
-#| echo: false
-#| message: false
-#| warning: false
-
-afficher(res.A, c("Modèle", "ΔAIC", "Poids"))
-```
-
-Au Centre, le meilleur modèle est M8 (DBO séparée) et M6 le suit de près (ΔAIC d'environ 1), alors que M7 (phosphore séparé) est à plus de 16 points d'AIC. La DBO est donc nécessaire, alors que séparer le phosphore ne suffit pas. Au Nord, aucun des trois modèles ne s'impose (poids de 0,55, 0,28 et 0,17). Ce classement ne concerne que les modèles à sources séparées, il est complété plus bas par la comparaison avec les modèles à totaux.
 
 ### Partie B : totaux de phosphore et de DBO (modèles agrégés)
 
