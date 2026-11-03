@@ -2209,8 +2209,9 @@ as.data.frame(classement) %>%
   row_spec(1:3, bold = TRUE, background = "#e8f4ea") # Surligne M7 et M5 (ΔAIC < 2)
 ```
 
-### Analyse des coefficients
+### Analyse des coefficients du modèle
 
+#### Analyse des effets fixes
 Nous examinons les coefficients du modèle M3 retenu afin d'évaluer le sens et l'amplitude des associations entre les différentes sources de phosphore et la richesse phytoplanctonique.
 
 Les résultats du modèle linéaire généralisé mixte (GLMM avec distribution de Poisson, basé sur 116 observations) montrent qu'après avoir pris en compte la variabilité naturelle temporelle (par `année`) et spatiale (par `sous-bassin`), la richesse de base en phytoplancton est d'environ `r round(exp(4.086),0)` espèces ($exp^{4.086}$; ordonnée à l'origine = $4,086$, $p < 0,001$). Cette valeur de base correspond à la zone géographique « Centrale » (qui sert de catégorie de référence, incluse dans l'ordonnée à l'origine) dans des conditions moyennes de nutriments. 
@@ -2225,31 +2226,220 @@ Enfin, la variable `area` de `Northen Paijanne` n'est pas significative ($p = 0,
 #| warning: false
 summary(M3.phy)
 ```
+#### Analyse des effets aléatoires
+Les effets aléatoires permettent de tenir compte de l'hétérogénéité entre les années et les sous-bassins.
+
+Les variances associées à l'année et au sous-bassin permettent de comparer l'importance de l'hétérogénéité entre ces deux niveaux de regroupement.
+```{r}
+#| label: tbl-effets-aleatoires
+#| echo: false
+
+VarCorr(M3.phy)
+
+# Conditional model:
+#  Groups    Name        Std.Dev.
+#  annee     (Intercept) 0.138600
+#  sub_basin (Intercept) 0.034733
+```
+#### Intervalles de confiance des coefficients
+Les intervalles de confiance permettent d'évaluer l'incertitude des coefficients estimés.
+
+```{r}
+#| label: tbl-intervalles-coefficients
+#| echo: false
+#| message: false
+
+confint(M3.phy)
+
+# > confint(M3.phy)
+#                                      2.5 %       97.5 %    Estimate
+# (Intercept)                    3.979937781 4.1824031419  4.08117046
+# z_P_municipal                 -0.134843746 0.0205204108 -0.05716167
+# z_P_industrial                -0.121235494 0.0005427652 -0.06034636
+# z_P_other                     -0.089125405 0.0575287236 -0.01579834
+# areaNorthen Paijanne          -0.054835891 0.2315959913  0.08838005
+# Std.Dev.(Intercept)|annee      0.101065666 0.1900752883  0.13860045
+# Std.Dev.(Intercept)|sub_basin  0.009768704 0.1234940782  0.03473294
+
+# dans le cours: library(nlme); nlme::intervals(M3.phy) 
+# => mais cela ne marche pas car adapté pour GLM donc utilisation de confint
+```
+
+#### Pouvoir explicatif du modèle
+Le pouvoir explicatif du modèle est évalué à partir des coefficients de détermination marginal et conditionnel de Nakagawa.
+
+Le R² marginal correspond à la contribution des effets fixes, tandis que le R² conditionnel prend également en compte les effets aléatoires.
+
+```{r}
+performance::r2_nakagawa(M3.phy)
+
+# R2 for Mixed Models
+  # Conditional R2: 0.677
+  #    Marginal R2: 0.253
+```
 
 ### Diagnostic du modèle choisi
-Pour un modèle de comptage, la variance dépend de la moyenne par construction, et les résidus ne sont pas supposés suivre une loi normale. La validation consiste donc à vérifier que:
-1. les résidus de Pearson sont centrés sur 0 et dépourvus de structure, en fonction des valeurs ajustées puis de chaque variable explicative, et que la dispersion est correcte. Les résidus de Pearson sont les écarts entre valeurs observées et attendues, divisés par l'écart-type attendu.
+Le modèle M3 étant un GLMM de Poisson avec une fonction de lien logarithmique, il ne nécessite ni la normalité des résidus ni l'homogénéité des variances au sens d'un modèle gaussien. 
+
+En revanche, la loi de Poisson suppose une égalité entre la moyenne et la variance conditionnelles. Nous vérifions donc la convergence du modèle, sa dispersion, l'absence de structure systématique dans les résidus, leur indépendance temporelle, la présence éventuelle d'observations influentes et la multicolinéarité des variables explicatives.
+
+#### Vérification de la convergence
+
+La validité des estimations nécessite une convergence satisfaisante de l'algorithme d'optimisation et une matrice hessienne définie positive.
+
+```{r}
+#| label: tbl-convergence-m3
+#| tbl-cap: "Vérification de la convergence de M3"
+#| echo: false
+
+tibble(
+  Critère = c(
+    "Convergence",
+    "Hessienne définie positive"
+  ),
+  Résultat = c(
+    ifelse(M3.phy$fit$convergence == 0, "Oui", "Non"),
+    ifelse(isTRUE(M3.phy$sdr$pdHess), "Oui", "Non")
+  )
+) |>
+  knitr::kable()
+```
+
+#### Vérification de la surdispersion
+La loi de Poisson suppose une égalité entre la moyenne
+et la variance conditionnelles de la variable réponse.
+
+Nous calculons un indice de dispersion à partir des résidus de Pearson. Une valeur proche de 1 est compatible avec la dispersion attendue, tandis qu'une valeur nettement supérieure à 1 peut indiquer une surdispersion.
+
+Ayant obtenue une dispersion de `r round(dispersion.pearson,3)`, nous pouvons dire que nous avons une duspersion compatible avec celle atendue.
+```{r}
+#| label: tbl-dispersion-m3
+#| tbl-cap: "Indice de dispersion de Pearson du modèle M3"
+#| echo: false
+
+dispersion.pearson <- dispersion(M3.phy)
+
+tibble(
+  Indicateur = "Dispersion de Pearson",
+  Valeur = dispersion.pearson
+) |>
+  knitr::kable(digits = 3)
+```
+```{r}
+#| label: tbl-validation
+#| tbl-cap: "Dispersion et autocorrélation des résidus de M3"
+#| echo: false
+#| message: false
+#| warning: false
+
+par.annee = diag.m3 %>% group_by(year) %>% summarise(r = mean(residu), .groups = "drop") %>% arrange(year)
+autocorr = acf(par.annee$r, lag.max = 1, plot = FALSE)$acf[2]
+
+tibble(
+  Dispersion = dispersion(M3.phy),
+  `Autocorrélation des résidus (lag 1, moyenne par année)` = autocorr
+) %>% kable(digits = 2)
+```
+
+#### Analyse des résidus de Pearson
+Nous examinons la distribution des résidus de Pearson à l'aide d'un histogramme et d'un graphique Quantile-Quantile (@fig-residus-ajustes). Ces représentations sont descriptives : la normalité des résidus n'est pas une condition d'application du modèle de Poisson.
+
+##### Distribution des résidus
+L'histogramme permet de décrire la distribution des résidus et de repérer d'éventuelles valeurs extrêmes. Le QQ-plot normal est utilisé uniquement à titre descriptif, la normalité n'étant pas une hypothèse du GLMM de Poisson.
+
+```{r}
+#| label: fig-distribution-residus
+#| fig-cap: "Distribution des résidus de Pearson du modèle M3"
+#| fig-width: 9
+#| fig-height: 4
+#| echo: false
+#| message: false
+#| warning: false
+
+residus.pearson <- residuals(
+  M3.phy,
+  type = "pearson"
+)
+
+par(mfrow = c(1, 2))
+
+hist(
+  residus.pearson,
+  col = col.phyto,
+  main = "",
+  xlab = "Résidus de Pearson"
+)
+
+qqnorm(
+  residus.pearson,
+  pch = 16,
+  col = col.phyto,
+  main = ""
+)
+
+qqline(residus.pearson, col = "red3")
+
+par(mfrow = c(1, 1))
+```
+
+##### Résidus en fonction des valeurs ajustées
+Nous représentons les résidus de Pearson en fonction des valeurs prédites afin de détecter d'éventuelles tendances ou structures non prises en compte par le modèle.
+
+Les résidus ne devraient pas présenter de tendance systématique en fonction des valeurs ajustées. Une courbure marquée pourrait indiquer un défaut d'ajustement ou une relation non modélisée.
+
+Dans notre cas, les résidus sont compris entre −2 et 1,5 environ et ne présentent pas de structure marquée @fig-residus-ajustes. Seules une légère tendance aux faibles valeurs ajustées (résidus plutôt négatifs) et une légère courbure aux valeurs extrêmes des phosphores municipal et industriel @fig-residus-x, où les observations sont peu nombreuses, sont visibles. La dispersion est de `r round(dispersion(modele.choisi), 2)`, ce qui exclut une surdispersion. En revanche, l'autocorrélation des résidus d'une année à la suivante est de `r round(autocorr, 2)`, valeur non négligeable : une dépendance entre années voisines subsiste après prise en compte des effets aléatoires. Elle constitue une limite du modèle.
 
 ```{r}
 #| label: fig-residus-ajustes
-#| fig-cap: "Résidus de Pearson de M3 contre les valeurs ajustées"
+#| fig-cap: "Résidus de Pearson en fonction des valeurs ajustées"
 #| fig-width: 7
 #| fig-height: 4.5
 #| echo: false
 #| message: false
 #| warning: false
 
-couleurs.secteur = c("Central Paijanne" = col.central, "Northen Paijanne" = col.nothen)
-diag.m3 =  data.analyse.phy.GLMM %>%
-  mutate(ajuste = fitted(modele.choisi), residu = residuals(modele.choisi, type = "pearson"))
+stopifnot(
+  nobs(M3.phy) == nrow(data.analyse.phy.GLMM)
+)
+
+couleurs.secteur <- c(
+  "Central Paijanne" = col.central,
+  "Northen Paijanne" = col.nothen
+)
+
+diag.m3 <- data.analyse.phy.GLMM |>
+  mutate(
+    ajuste = fitted(M3.phy),
+    residu = residuals(
+      M3.phy,
+      type = "pearson"
+    )
+  )
 
 ggplot(diag.m3, aes(ajuste, residu, colour = area)) +
-  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed"
+  ) +
   geom_point(alpha = 0.7) +
-  geom_smooth(aes(group = 1), method = "loess", formula = y ~ x, se = FALSE, colour = "black", linewidth = 0.6) +
-  scale_colour_manual(values = couleurs.secteur, name = "Secteur") +
-  labs(x = "Valeurs ajustées", y = "Résidus de Pearson")
+  geom_smooth(
+    aes(group = 1),
+    method = "loess",
+    formula = y ~ x,
+    se = FALSE,
+    colour = "black",
+    linewidth = 0.6
+  ) +
+  scale_colour_manual(
+    values = couleurs.secteur,
+    name = "Secteur"
+  ) +
+  labs(
+    x = "Valeurs ajustées",
+    y = "Résidus de Pearson"
+  )
 ```
+
 
 ```{r}
 #| label: fig-residus-x
@@ -2271,25 +2461,80 @@ diag.m3 %>%
   labs(x = "Valeur standardisée", y = "Résidus de Pearson")
 ```
 
+#### Vérification des observations influentes
+La distance de Cook utilisée pour le GLM du cours n'étant pas directement disponible pour les objets `glmmTMB`, nous ne réalisons pas cette vérification.
+
 ```{r}
-#| label: tbl-validation
-#| tbl-cap: "Dispersion et autocorrélation des résidus de M3"
+# cooks.distance(M3.phy) => marche pas
+```
+
+#### Vérification complémentaire avec DHARMa
+Nous complétons les diagnostics précédents à l'aide du package `DHARMa`, qui permet de comparer les résidus simulés aux propriétés attendues sous le modèle ajusté.
+```{r}
+#| label: fig-dharma-m3
+#| fig-cap: "Diagnostic des résidus simulés du GLMM M3"
+#| fig-width: 9
+#| fig-height: 5
 #| echo: false
 #| message: false
 #| warning: false
 
-par.annee = diag.m3 %>% group_by(year) %>% summarise(r = mean(residu), .groups = "drop") %>% arrange(year)
-autocorr = acf(par.annee$r, lag.max = 1, plot = FALSE)$acf[2]
+set.seed(1707)
 
-tibble(
-  Dispersion = dispersion(modele.choisi),
-  `Autocorrélation des résidus (lag 1, moyenne par année)` = autocorr
-) %>% kable(digits = 2)
+residus.dharma <- DHARMa::simulateResiduals(
+  fittedModel = M3.phy,
+  n = 1000
+)
+
+plot(residus.dharma)
 ```
 
-Les résidus sont compris entre −2 et 1,5 environ et ne présentent pas de structure marquée. Seules une légère tendance aux faibles valeurs ajustées (résidus plutôt négatifs) et une légère courbure aux valeurs extrêmes des phosphores municipal et industriel, où les observations sont peu nombreuses, sont visibles. La dispersion est de `r round(dispersion(modele.choisi), 2)`, ce qui exclut une surdispersion. En revanche, l'autocorrélation des résidus d'une année à la suivante est de `r round(autocorr, 2)`, valeur non négligeable : une dépendance entre années voisines subsiste après prise en compte des effets aléatoires. Elle constitue une limite du modèle.
+```{r}
+#| label: tbl-tests-dharma
+#| tbl-cap: "Tests complémentaires des résidus simulés de M3"
+#| echo: false
+#| message: false
+#| warning: false
 
+test.uniformite <- DHARMa::testUniformity(
+  residus.dharma,
+  plot = FALSE
+)
+
+test.dispersion <- DHARMa::testDispersion(
+  residus.dharma,
+  plot = FALSE
+)
+
+test.zeros <- DHARMa::testZeroInflation(
+  residus.dharma,
+  plot = FALSE
+)
+
+tibble(
+  Test = c(
+    "Uniformité",
+    "Dispersion",
+    "Inflation ou déficit de zéros"
+  ),
+  `p-value` = c(
+    test.uniformite$p.value,
+    test.dispersion$p.value,
+    test.zeros$p.value
+  )
+) |>
+  knitr::kable(digits = 4)
+
+# Test	p-value
+# Uniformité	0.0197
+# Dispersion	0.8040
+# Inflation ou déficit de zéros	1.000
+```
+#### Vérification multicolinéarité
 Enfin, la colinéarité est évaluée par le facteur d'inflation de la variance (VIF), pour le modèle retenu et, à titre de comparaison, pour le modèle complet. La colinéarité est généralement jugée faible en dessous de 5, modérée entre 5 et 10, et forte au-delà de 10.
+
+
+Dans le modèle retenu, les VIF sont faibles (maximum `r max(vif.m3$M3)`; @tbl-vif) : les coefficients des trois sources de phosphore peuvent être interprétés séparément. Dans le modèle complet, le VIF maximal est de `r max(vif.m7$M7)` (phosphore municipal), ce qui correspond à une colinéarité modérée, certains apports variant conjointement (par exemple le phosphore municipal et la DBO municipale). Les coefficients du modèle complet sont donc moins fiables que ceux de M3.
 
 ```{r}
 #| label: tbl-vif
@@ -2305,12 +2550,11 @@ vif.de = function(m, nom) {
   v
 }
 vif.m7 = vif.de(res$ms[["M7 : toutes les sources"]], "M7")
-vif.m3 = vif.de(modele.choisi, "M3")
+vif.m3 = vif.de(M3.phy, "M3")
 vif.tab = left_join(vif.m7, vif.m3, by = "Term")
 kable(vif.tab)
 ```
 
-Dans le modèle retenu, les VIF sont faibles (maximum `r max(vif.m3$M3)`) : les coefficients des trois sources de phosphore peuvent être interprétés séparément. Dans le modèle complet, le VIF maximal est de `r max(vif.m7$M7)` (phosphore municipal), ce qui correspond à une colinéarité modérée, certains apports variant conjointement (par exemple le phosphore municipal et la DBO municipale). Les coefficients du modèle complet sont donc moins fiables que ceux de M3.
 
 ### Conclusion sur les facteurs qui influencent la richesse du phytoplancton
 
