@@ -2242,24 +2242,28 @@ VarCorr(M3.phy)
 #  sub_basin (Intercept) 0.034733
 ```
 #### Intervalles de confiance des coefficients
-Les intervalles de confiance permettent d'évaluer l'incertitude des coefficients estimés.
+Les intervalles de confiance (IC) permettent d'évaluer l'incertitude des estimations des écarts-types associés aux facteurs aléatoires (`annee` et `sub_basin`) et d'examiner la variabilité de la richesse phytoplanctonique entre les groupes.
+
+* Pour le facteur `annee`, le modèle estime un écart-type interannuel de 0,139, avec un intervalle de confiance à 95 % de [0,101 ; 0,192]. Cet intervalle exclut zéro, ce qui suggère une variabilité de la richesse phytoplanctonique entre les années, même après prise en compte des effets fixes du modèle.
+
+* Pour le facteur `sub_basin`, l'écart-type est estimé à 0,035, avec une borne supérieure de l'intervalle de confiance à 95 % de 0,104. La borne inférieure n'a pas pu être estimée par la méthode du profil de vraisemblance. Il n'est donc pas possible de conclure à la significativité de cet effet aléatoire sur la base de cet intervalle.
+
+Les estimations suggèrent donc que la variabilité interannuelle est plus importante que la variabilité entre sous-bassins. Les IC ont été obtenus en appliquant une transformation exponentielle aux paramètres estimés sur l'échelle logarithmique des écarts-types, afin de les exprimer directement en écarts-types des effets aléatoires.
 
 ```{r}
 #| label: tbl-intervalles-coefficients
 #| echo: false
 #| message: false
 
-confint(M3.phy)
+# Intervalles de confiance des effets aléatoires
+IC.random <- confint(
+  M3.phy,
+  method = "profile",
+  parm = "theta_"
+)
 
-# > confint(M3.phy)
-#                                      2.5 %       97.5 %    Estimate
-# (Intercept)                    3.979937781 4.1824031419  4.08117046
-# z_P_municipal                 -0.134843746 0.0205204108 -0.05716167
-# z_P_industrial                -0.121235494 0.0005427652 -0.06034636
-# z_P_other                     -0.089125405 0.0575287236 -0.01579834
-# areaNorthen Paijanne          -0.054835891 0.2315959913  0.08838005
-# Std.Dev.(Intercept)|annee      0.101065666 0.1900752883  0.13860045
-# Std.Dev.(Intercept)|sub_basin  0.009768704 0.1234940782  0.03473294
+# Transformation en écarts-types
+exp(IC.random[, c("2.5 %", "97.5 %")]) # comme nous travaillons a l'echelle log, il faut transformer par l'exponentielle.
 
 # dans le cours: library(nlme); nlme::intervals(M3.phy) 
 # => mais cela ne marche pas car adapté pour GLM donc utilisation de confint
@@ -2270,54 +2274,34 @@ Le pouvoir explicatif du modèle est évalué à partir des coefficients de dét
 
 Le R² marginal correspond à la contribution des effets fixes, tandis que le R² conditionnel prend également en compte les effets aléatoires.
 
+Le coefficient de détermination marginal de Nakagawa est de 0,253, indiquant que les effets fixes du modèle expliquent environ 25,3 % de la variabilité, selon la décomposition de variance propre aux GLMM. Le R² conditionnel atteint 0,677 lorsque les effets aléatoires sont également pris en compte. Cette différence suggère que l'hétérogénéité entre les années et les sous-bassins contribue fortement au pouvoir explicatif du modèle, au-delà des seuls apports de phosphore.
+
 ```{r}
 performance::r2_nakagawa(M3.phy)
-
-# R2 for Mixed Models
-  # Conditional R2: 0.677
-  #    Marginal R2: 0.253
 ```
 
 ### Diagnostic du modèle choisi
 Le modèle M3 étant un GLMM de Poisson avec une fonction de lien logarithmique, il ne nécessite ni la normalité des résidus ni l'homogénéité des variances au sens d'un modèle gaussien. 
 
-En revanche, la loi de Poisson suppose une égalité entre la moyenne et la variance conditionnelles. Nous vérifions donc la convergence du modèle, sa dispersion, l'absence de structure systématique dans les résidus, leur indépendance temporelle, la présence éventuelle d'observations influentes et la multicolinéarité des variables explicatives.
-
-#### Vérification de la convergence
-
-La validité des estimations nécessite une convergence satisfaisante de l'algorithme d'optimisation et une matrice hessienne définie positive.
-
-```{r}
-#| label: tbl-convergence-m3
-#| tbl-cap: "Vérification de la convergence de M3"
-#| echo: false
-
-tibble(
-  Critère = c(
-    "Convergence",
-    "Hessienne définie positive"
-  ),
-  Résultat = c(
-    ifelse(M3.phy$fit$convergence == 0, "Oui", "Non"),
-    ifelse(isTRUE(M3.phy$sdr$pdHess), "Oui", "Non")
-  )
-) |>
-  knitr::kable()
-```
+En revanche, la loi de Poisson suppose une égalité entre la moyenne et la variance conditionnelles. Nous vérifions donc la dispersion, l'absence de structure systématique dans les résidus,  influentes et la multicolinéarité des variables explicative du modele.
 
 #### Vérification de la surdispersion
+```{r}
+#| label: calc-pearson-disp
+#| echo: false
+
+dispersion.pearson <- dispersion(M3.phy)
+```
 La loi de Poisson suppose une égalité entre la moyenne
 et la variance conditionnelles de la variable réponse.
 
 Nous calculons un indice de dispersion à partir des résidus de Pearson. Une valeur proche de 1 est compatible avec la dispersion attendue, tandis qu'une valeur nettement supérieure à 1 peut indiquer une surdispersion.
 
-Ayant obtenue une dispersion de `r round(dispersion.pearson,3)`, nous pouvons dire que nous avons une duspersion compatible avec celle atendue.
+L'indice de dispersion de Pearson est de `r round(dispersion.pearson, 3)` (@tbl-dispersion-m3). Cette valeur est examinée afin de rechercher une éventuelle surdispersion par rapport à la distribution de Poisson. Ce diagnostic sera complété par l'analyse des résidus simulés avec DHARMa.
 ```{r}
 #| label: tbl-dispersion-m3
 #| tbl-cap: "Indice de dispersion de Pearson du modèle M3"
 #| echo: false
-
-dispersion.pearson <- dispersion(M3.phy)
 
 tibble(
   Indicateur = "Dispersion de Pearson",
@@ -2325,24 +2309,8 @@ tibble(
 ) |>
   knitr::kable(digits = 3)
 ```
-```{r}
-#| label: tbl-validation
-#| tbl-cap: "Dispersion et autocorrélation des résidus de M3"
-#| echo: false
-#| message: false
-#| warning: false
-
-par.annee = diag.m3 %>% group_by(year) %>% summarise(r = mean(residu), .groups = "drop") %>% arrange(year)
-autocorr = acf(par.annee$r, lag.max = 1, plot = FALSE)$acf[2]
-
-tibble(
-  Dispersion = dispersion(M3.phy),
-  `Autocorrélation des résidus (lag 1, moyenne par année)` = autocorr
-) %>% kable(digits = 2)
-```
-
 #### Analyse des résidus de Pearson
-Nous examinons la distribution des résidus de Pearson à l'aide d'un histogramme et d'un graphique Quantile-Quantile (@fig-residus-ajustes). Ces représentations sont descriptives : la normalité des résidus n'est pas une condition d'application du modèle de Poisson.
+Nous examinons la distribution des résidus de Pearson à l'aide d'un histogramme et d'un graphique Quantile-Quantile (@fig-distribution-residus). Ces représentations sont descriptives : la normalité des résidus n'est pas une condition d'application du modèle de Poisson.
 
 ##### Distribution des résidus
 L'histogramme permet de décrire la distribution des résidus et de repérer d'éventuelles valeurs extrêmes. Le QQ-plot normal est utilisé uniquement à titre descriptif, la normalité n'étant pas une hypothèse du GLMM de Poisson.
@@ -2462,7 +2430,7 @@ diag.m3 %>%
 ```
 
 #### Vérification des observations influentes
-La distance de Cook utilisée pour le GLM du cours n'étant pas directement disponible pour les objets `glmmTMB`, nous ne réalisons pas cette vérification.
+L'influence individuelle des observations n'a pas été évaluée à l'aide de la distance de Cook, cette méthode n'étant pas directement disponible pour le modèle ajusté avec `glmmTMB`. Cette absence de diagnostic constitue une limite de la validation.
 
 ```{r}
 # cooks.distance(M3.phy) => marche pas
@@ -2470,6 +2438,9 @@ La distance de Cook utilisée pour le GLM du cours n'étant pas directement disp
 
 #### Vérification complémentaire avec DHARMa
 Nous complétons les diagnostics précédents à l'aide du package `DHARMa`, qui permet de comparer les résidus simulés aux propriétés attendues sous le modèle ajusté.
+
+L'analyse des résidus simulés avec DHARMa ne montre aucun problème de dispersion ($p = 0,804$ ; @tbl-tests-dharma), ni d'inflation de zéros ($p = 1,000$ ; @tbl-tests-dharma). En revanche, le test d'uniformité de Kolmogorov-Smirnov est significatif ($p = 0,0197$ ; @tbl-tests-dharma). Cela suggère une légère déviation entre la distribution des résidus observés et celle attendue. La structure et la dispersion de type Poisson restent globalement correctes. Cependant, quelques déviations de quantiles sont visibles graphiquement (@fig-dharma-m3). On peut supposer que dans un contexte écologique comme le notre, ces légers écarts peuvent refléter des facteurs externes non mesurés et ils peuvent aussi indiquer une relation légèrement non linéaire à l'échelle log. Malgré cela, le modèle demeure robuste pour l'inférence principale.
+
 ```{r}
 #| label: fig-dharma-m3
 #| fig-cap: "Diagnostic des résidus simulés du GLMM M3"
@@ -2524,17 +2495,15 @@ tibble(
   )
 ) |>
   knitr::kable(digits = 4)
-
-# Test	p-value
-# Uniformité	0.0197
-# Dispersion	0.8040
-# Inflation ou déficit de zéros	1.000
 ```
 #### Vérification multicolinéarité
 Enfin, la colinéarité est évaluée par le facteur d'inflation de la variance (VIF), pour le modèle retenu et, à titre de comparaison, pour le modèle complet. La colinéarité est généralement jugée faible en dessous de 5, modérée entre 5 et 10, et forte au-delà de 10.
 
+Dans le modèle retenu, les VIF sont faibles. Le maximum est de `r max(vif.m3$M3)` (@tbl-vif). Les coefficients des trois sources de phosphore peuvent donc être interprétés séparément.
 
-Dans le modèle retenu, les VIF sont faibles (maximum `r max(vif.m3$M3)`; @tbl-vif) : les coefficients des trois sources de phosphore peuvent être interprétés séparément. Dans le modèle complet, le VIF maximal est de `r max(vif.m7$M7)` (phosphore municipal), ce qui correspond à une colinéarité modérée, certains apports variant conjointement (par exemple le phosphore municipal et la DBO municipale). Les coefficients du modèle complet sont donc moins fiables que ceux de M3.
+Dans le modèle complet, le VIF maximal est de r max(vif.m7$M7) pour le phosphore municipal. Cela correspond à une colinéarité modérée. Certains apports varient conjointement, comme le phosphore municipal et la DBO municipale.
+
+Les coefficients du modèle complet sont donc moins fiables que ceux de M3. Cela renforce la pertinence du choix de ce modèle.
 
 ```{r}
 #| label: tbl-vif
@@ -2558,7 +2527,11 @@ kable(vif.tab)
 
 ### Conclusion sur les facteurs qui influencent la richesse du phytoplancton
 
-Lorsque l'année et le sous-bassin sont traités comme effets aléatoires, le meilleur modèle est celui du phosphore (M3), dans lequel seul le phosphore industriel se distingue, avec un effet négatif. La DBO et l'azote municipal n'améliorent pas le modèle. La loi de Poisson est adaptée (dispersion inférieure à 1), les résidus ne présentent pas de structure marquée et la colinéarité est faible dans le modèle retenu. Ce résultat doit toutefois être nuancé : il dépend du traitement de l'année et peut refléter la tendance temporelle plutôt qu'un effet direct du phosphore industriel, point précisé dans les perspectives.
+Le modèle M3, fondé sur les apports de phosphore, présente le meilleur compromis entre ajustement et complexité selon ΔAIC. Seul le phosphore industriel montre une association négative proche du seuil de significativité. Les effets aléatoires, principalement celui de l'année, contribuent fortement au pouvoir explicatif du modèle.
+
+Bien que la dispersion soit compatible avec une loi de Poisson, le test d'uniformité des résidus révèle certaines limites. Enfin, la prise en compte d'une tendance temporelle remet en question la robustesse de l'association avec le phosphore industriel. Ce résultat doit donc être interprété avec prudence, car l'association observée pourrait être principalement liée à l'évolution temporelle des variables étudiées.
+
+Il est également important de rappeler que le phosphore industriel est corrélé à l'azote industriel, exclu des modèles. Ainsi, l'association observée avec la richesse phytoplanctonique pourrait également être liée aux apports d'azote industriel, sans que leur contribution puisse être confirmée par les modèles étudiés.
 
 ### Perspectives
 #### Moyenne de modèles
