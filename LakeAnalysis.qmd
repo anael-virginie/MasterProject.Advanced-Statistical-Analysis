@@ -1375,7 +1375,7 @@ check_collinearity(m_fish_NB) # pas de pb de multicolinéarité
 ###### Analyse des coefficients du modèle choisi
 
 ```{r}
-#| label: mod-fish-NB
+#| label: mod-fish-NBsum
 summary(m_fish_NB)
 ```
 
