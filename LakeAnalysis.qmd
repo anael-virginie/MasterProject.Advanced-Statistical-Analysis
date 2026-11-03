@@ -1117,10 +1117,12 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 - M1 (`m_fish_N`) : seul l'azote a un effet sur les captures dépendamment de l'origine du rejet 
 - M2 (`m_fish_P`) : seul le phosphore a un effet sur les captures dépendamment de l'origine du rejet
 - M3 (`m_fish_BOD`) : seule la DBO a un effet sur les captures dépendamment de l'origine du rejet 
-- M4 (`m_fish_PB`) : le phosphore et la DBO influencent la richesse de facon additive, dépendamment de l'origine du rejet 
-- M5 (`m_fish_NB`) : l'azote et la DBO influencent la richesse de facon additive, dépendamment de l'origine du rejet
-- M6 (`m_fish_PN`) : le phosphore et l'azote influencent la richesse de facon additive, dépendamment de l'origine du rejet
-- M7 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons dépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année)
+- M4 (`m_fish_PB`) : le phosphore et la DBO influencent les captures de facon additive, dépendamment de l'origine du rejet 
+- M5 (`m_fish_NB`) : l'azote et la DBO influencent les captures de facon additive, dépendamment de l'origine du rejet
+- M6 (`m_fish_PN`) : le phosphore et l'azote influencent les captures de facon additive, dépendamment de l'origine du rejet
+- M7 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons dépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle)
+
+Chacun des modèles intègre en effet aléatoire les sous-bassin (1|sub-basin) et l'année (1|year) pour se concentrer sur l'effet des nutriments et ainsi construire un modèle davantage adapté à la question de recherche. Cela permet de controler une partie de la variabilité des données non expliquée par les nutriments et d'éviter de l'attribuer à tord à ces derniers. Pour les mêmes raisons et sachant que la zone géographique (area) a un rôle dans la variabilité comme envisagé dans la partie exploratoire, il a été choisit de rajouter area en effet fixe à ces modèles.  
 
 ###### Choix de la loi {#sec-fish-choix-model}
 
@@ -1172,9 +1174,9 @@ Légère surdispersion détectée p = 0.024
 testOutliers(res)
 ```
 
-Comme anticipé, on détecte une valeurs extrême mais celle-ci n'est pas suffisante pour rejeter le modele 
+Comme anticipé, on détecte une valeurs extrême mais celle-ci n'est pas suffisante pour rejeter le modele. Ici, l'objectif est simplement de construire un modèle que l'on va comparer pour aider à la décision de la loi, Gamma (GLMM) ou Gaussienne (LME). 
 
-Nous comparons ce modèle à un LME 
+Nous comparons donc ce modèle à un LME selon une distribution Gaussienne. 
 
 ```{r}
 #| label: mod-lme-fish
@@ -1219,13 +1221,15 @@ AIC(m_gamma_fish, m_lme_fish)
 
 Modèle gamma large favori (AIC = -95 vs AIC = -52)
 
-Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC
+Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC.
 Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
 attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
 
 ###### Définition des modèles
 
-Modèle N
+Modèle N (M1): $$
+\text{fish\_catch} \sim N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 ```{r}
 #| label: mod-fish-N
 
@@ -1237,7 +1241,9 @@ m_fish_N <- glmmTMB(
 )
 ``` 
 
-Modèle P
+Modèle P (M2): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 
 ```{r}
 #| label: mod-fish-p
@@ -1249,7 +1255,9 @@ m_fish_N <- glmmTMB(
 )
 ``` 
 
-Modèle BOD 
+Modèle BOD (M3): $$
+\text{fish\_catch} \sim BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 
 ```{r}
 #| label: mod-fish-bod
@@ -1262,7 +1270,9 @@ m_fish_BOD <- glmmTMB(
 )
 ```
 
-Modèle PB 
+Modèle PB (M4): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 
 ```{r}
 #| label: mod-fish-PB
@@ -1275,7 +1285,9 @@ m_fish_PB <- glmmTMB(
 )
 ``` 
 
-Modèle NB 
+Modèle NB (M5): $$
+\text{fish\_catch} \sim N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 
 ```{r}
 #| label: mod-fish-NB
@@ -1287,7 +1299,9 @@ m_fish_NB <- glmmTMB(
 )
 ``` 
 
-Modèle PN 
+Modèle PN (M6): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 
 ```{r}
 #| label: mod-fish-PN
@@ -1300,7 +1314,9 @@ m_fish_PN <- glmmTMB(
 )
 ``` 
 
-Modèle complet 
+Modèle complet (M7): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
+$$
 
 ```{r}
 #| label: mod-fish-complet
@@ -1333,9 +1349,7 @@ models_fish <- MuMIn::model.sel(
 )
 models_fish
 ```
-
-Meilleur model = m_fish_NB
-
+Le modèle minimisant l'AIC s'avère etre le modèle NB comprenant l'azote et BOD (AIC=-101)
 
 ###### Diagnostic du modèle choisi
 
@@ -1352,7 +1366,7 @@ plot(residus_NB)
 
 # 3. Tests statistiques
 # Test d'uniformité des résidus
-testUniformity(residus_NB)
+testUniformity(residus_NB) # p-value = 0.4115
 # Test de dispersion des résidus
 testDispersion(residus_NB) # dispersion = 1.6916, p-value = 0.018
 # Test des valeurs extrêmes (outliers)
@@ -1372,12 +1386,18 @@ plotResiduals(residus_NB, form = data_NB$area) # pas d'hétérogénéité signif
 # 5. Multicolinéarité
 check_collinearity(m_fish_NB) # pas de pb de multicolinéarité  
 ```
+Le diagnostic du modèle le valide en grande partie bien qu'un point de vigilance soit la dispersion significative. Premièrement, le test d'uniformité indique qu'il n'y a pas de différence statistique entre la distribution des residus simulés et une distribution uniforme théorique (pvalue = 0.4115). La distribution des résidus selon les variables explicatives est également positive ne montrant pas de déviation significative des quantiles bien que des écarts locaux sont observés pour N_municipal. Une seule valeurs aberante est détectée mais celle-ci ne pose a priori pas de problème pour le modèle. Par ailleurs, pas de multicolibnéarité importante n'est révélée via le calcul des VIF. Enfin, surdispersion observée (pvalue = 0.018) est la véritable limite du modèle et nécessite une interprétation prudente des variables significatives du modèle. 
+
+Afin d'appréhender cette surdispersion un modèle construit sans area en effet fixe et year en effet aléatoire à été testé. La dispersion relative au résidus simulés de ce modèle s'est avérée non-significative (Disp = 1.483, pvalue = 0.411). Néanmoins, ce modèle retirant une variable importante susceptible de modifier artificielement les coefficients des variables nutriments après retrait (area), il a été décidé de conserver le modèle choisi inialement. 
+
 ###### Analyse des coefficients du modèle choisi
 
 ```{r}
 #| label: mod-fish-NBsum
 summary(m_fish_NB)
 ```
+BOD_municipal présente un coefficient de 0.1772 pour une pvalue significative de 0.029. Cette effet à prendre avec prudence au regard de la surdispersion du modèle, suggère que la BOD est postivement corrélée aux captures pour les rejets municipaux. Cependant, cet effet s'inverse concernant les rejets industriels (estimate = -0.137, pvalue = 0.0458), la pvalue reste très proche du seuil de 0.05 pour cet effet. L'effet de l'azote associé aux rejets municipaux ne s'avère pas significatif. Le coefficient positif (estimate = 0.278) suggere neanmoins qu'il y aurait un lien positif entre la biomasse de poissons et la concentration en azote. Enfin, la zone Northen Paijane semble fortement corrélé négativement avec les captures de poissons (estimate = -0.641) bien que cette corrélation ne soit pas significative (pvalue = 0.088). 
+
 
 ###### Représentation graphique finale du modèle choisi
 
@@ -1420,5 +1440,6 @@ ggplot(predictions, aes(x = x, y = predicted)) +
 
 # Discussion
 
+Le modèle conservé pour l'interprétation des effets des nutriments sur les captures de poissons a permis de mettre en évidence plusieurs effets potentiels. Ces effets sont à prendre avec prudence sachant que le modèle présente une surdispersion. Ils concernent uniquement la demande biologique en oxygene (BOD) qui traduit indirectement la quantité de matière organique biodégradable. Celle-ci a d'un coté un effet positif sur la quantité de capture lorsqu'elle provient des rejets municipaux et de l'autre un effet négatif lorsqu'elle provient des rejets industriels. Cette ambivalence dans l'effet de ce facteur pourrait mettre en cause une différence dans la "qualité" de la matiere organique selon le type de rejet. L'une pouvant potentiellement favoriser la chaine trophique et donc la croissance des populations de poissons quand l'autre la défavorise. 
 
 # Conclusion
