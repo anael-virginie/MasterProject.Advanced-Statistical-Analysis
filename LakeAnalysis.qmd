@@ -1376,7 +1376,7 @@ m_fish_NB_final <- glmmTMB(
   family = Gamma(link = "log"),
   data = data.analyse.fish.GLMM
 )
-summary(m_fish_NB_final) # on retire l'effet aleatoire de year pour reduire la surdispersion 
+summary(m_fish_NB_final) # on retire l'effet aleatoire de year et area pour reduire la surdispersion 
 # meilleur AIC que m_fish_NB : -101.8 vs -101
 
 # Simulation des résidus
