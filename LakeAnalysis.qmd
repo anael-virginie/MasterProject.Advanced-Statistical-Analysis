@@ -2310,10 +2310,10 @@ tibble(
   knitr::kable(digits = 3)
 ```
 #### Analyse des résidus de Pearson
-Nous examinons la distribution des résidus de Pearson à l'aide d'un histogramme et d'un graphique Quantile-Quantile (@fig-distribution-residus). Ces représentations sont descriptives : la normalité des résidus n'est pas une condition d'application du modèle de Poisson.
+Nous examinons la distribution des résidus de Pearson à l'aide d'un histogramme et d'un graphique Quantile-Quantile. Ces représentations sont descriptives : la normalité des résidus n'est pas une condition d'application du modèle de Poisson.
 
 ##### Distribution des résidus
-L'histogramme permet de décrire la distribution des résidus et de repérer d'éventuelles valeurs extrêmes. Le QQ-plot normal est utilisé uniquement à titre descriptif, la normalité n'étant pas une hypothèse du GLMM de Poisson.
+L'histogramme permet de décrire la distribtion des résidus et de repérer d'éventuelles valeurs extrêmes : nous pouvons observer que la distribution des résidus de Pearson est symétrique, centrée autour de zéro et ne présente pas de valeurs aberrantes notables (les valeurs se concentrent entre -2 et 2 ; @fig-distribution-residus). Le QQ-plot normal est utilisé uniquement à titre descriptif, la normalité n'étant pas une hypothèse du GLMM de Poisson.
 
 ```{r}
 #| label: fig-distribution-residus
@@ -2352,8 +2352,6 @@ par(mfrow = c(1, 1))
 
 ##### Résidus en fonction des valeurs ajustées
 Nous représentons les résidus de Pearson en fonction des valeurs prédites afin de détecter d'éventuelles tendances ou structures non prises en compte par le modèle.
-
-Les résidus ne devraient pas présenter de tendance systématique en fonction des valeurs ajustées. Une courbure marquée pourrait indiquer un défaut d'ajustement ou une relation non modélisée.
 
 Dans notre cas, les résidus sont compris entre −2 et 1,5 environ et ne présentent pas de structure marquée @fig-residus-ajustes. Seules une légère tendance aux faibles valeurs ajustées (résidus plutôt négatifs) et une légère courbure aux valeurs extrêmes des phosphores municipal et industriel @fig-residus-x, où les observations sont peu nombreuses, sont visibles. La dispersion est de `r round(dispersion(modele.choisi), 2)`, ce qui exclut une surdispersion. En revanche, l'autocorrélation des résidus d'une année à la suivante est de `r round(autocorr, 2)`, valeur non négligeable : une dépendance entre années voisines subsiste après prise en compte des effets aléatoires. Elle constitue une limite du modèle.
 
@@ -2644,6 +2642,9 @@ Le classement diffère entre les deux secteurs, et aucun d'eux ne retient M3. Da
 - Les sources sont fortement corrélées entre elles (par exemple le phosphore municipal et la DBO municipale, r = `r round(cor( data.analyse.phy.GLMM$z_P_municipal,  data.analyse.phy.GLMM$z_BOD_municipal), 2)`). Le regroupement des sources en totaux de phosphore et de DBO réduirait cette colinéarité.
 - L'autocorrélation des résidus d'une année à l'autre (`r round(autocorr, 2)`) suggère de tester une structure de corrélation temporelle.
 
+
+
+#### Annexe code 
 
 
 # Partie Poisson
