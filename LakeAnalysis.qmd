@@ -1216,7 +1216,7 @@ par(mfrow = c(1, 1))
 #| tbl-cap: "Comparaison AIC entre le GLMM Gamma et le LME"
 
 ## Comparaison AIC
-AIC(m_gamma_fish, m_lme_fish)
+AIC(m_fish_GLMM, m_lme_fish)
 ```
 
 Modèle gamma large favori (AIC = -95 vs AIC = -52)
