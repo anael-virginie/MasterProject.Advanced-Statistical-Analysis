@@ -35,7 +35,7 @@ Pour répondre à ces questions, nous analysons l'évolution spatiale et tempore
 L'analyse est réalisée en plusieurs étapes. Nous commençons par une exploration descriptive des données afin d'examiner leur structure, leurs distributions et les éventuelles valeurs manquantes. Nous étudions ensuite les relations entre les variables environnementales et biologiques, ainsi que les corrélations entre les différents nutriments. Enfin, des approches multivariées et des modèles statistiques seront utilisés pour identifier les facteurs les plus fortement associés aux variations observées des communautés biologiques.
 
 # Graphical Abstract
-{{< include GraphicalAbstract.html >}}
+<img src="GraphicalAbstract.svg" style="filter: none !important;" width="100%" />
 
 ```{r initialisation}
 #| include: false
@@ -141,7 +141,7 @@ data.biotic <- data.biotic %>%
          sub_basin = as.factor(sub_basin))
 ```
 
-Comme montré dans @tabl-glimpse-data, nous avons donc deux data sets.
+Comme montré dans @tbl-glimpse-data, nous avons donc deux data sets.
 
 `data.nutriment` comporte :
 
@@ -1181,21 +1181,29 @@ data.nutriment.impute[variables.nutriments] <-
 #| warning: false
 #| output: true
 
-# 1. Charger l'objet principal MIPCA (sauvegardé précédemment)
-# set.seed(123)
-# resultat.MIPCA <- missMDA::MIPCA(X.nutriments, ncp = ncp.estime$ncp, nboot = 1000, method.mi = "Bayes")
-# saveRDS(resultat.MIPCA, "resultat.MIPCA.rds")
-resultat.MIPCA <- readRDS("resultat.MIPCA.rds")
+# 1. Charger les résultats sauvegardés, ou les calculer s'ils sont absents.
+if (file.exists("resultat.MIPCA.rds")) {
+  resultat.MIPCA <- readRDS("resultat.MIPCA.rds")
+} else {
+  set.seed(123)
+  resultat.MIPCA <- missMDA::MIPCA(
+    X.nutriments, ncp = ncp.estime$ncp, nboot = 1000, method.mi = "Bayes"
+  )
+  saveRDS(resultat.MIPCA, "resultat.MIPCA.rds")
+}
 
-# 2. Charger et afficher le premier graphique (individus supplémentaires)
-# p_ind <- plot(resultat.MIPCA, choice = "ind.supp", axes = c(1, 2), new.plot = FALSE)
-# saveRDS(p_ind, "resultat.plot_ind_supp.rds")
-readRDS("resultat.MIPCA.plot_ind_supp.rds")
+# 2. Réutiliser à l'identique les figures sauvegardées, si disponibles.
+if (file.exists("resultat.MIPCA.plot_ind_supp.rds")) {
+  readRDS("resultat.MIPCA.plot_ind_supp.rds")
+} else {
+  plot(resultat.MIPCA, choice = "ind.supp", axes = c(1, 2), new.plot = FALSE)
+}
 
-# 3. Charger et afficher le second graphique (variables)
-# p_var <- plot(resultat.MIPCA, choice = "var", axes = c(1, 2), new.plot = FALSE)
-# saveRDS(p_var, "resultat.plot_var.rds")
-readRDS("resultat.MIPCA.plot_var.rds")
+if (file.exists("resultat.MIPCA.plot_var.rds")) {
+  readRDS("resultat.MIPCA.plot_var.rds")
+} else {
+  plot(resultat.MIPCA, choice = "var", axes = c(1, 2), new.plot = FALSE)
+}
 ```
 
 ```{r}
@@ -2021,7 +2029,17 @@ Afin d'examiner cette hypothèse, nous comparons deux GLMM : un modèle avec des
 
 # 1. Modèle sans interaction
 # M7 contient déjà area comme effet fixe
-modele.area <- M7.phy
+modele.area <- glmmTMB(
+  phyto_richness ~
+    area +
+    z_P_municipal + z_P_industrial + z_P_other +
+    z_N_municipal +
+    z_BOD_municipal + z_BOD_industrial +
+    (1 | annee) +
+    (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
 
 # 2. Modèle avec interactions entre area et les apports
 modele.inter <- glmmTMB(
@@ -2091,8 +2109,8 @@ Après avoir examiné la distribution de la richesse phytoplanctonique et compar
 Nous définissons ensuite huit modèles (M0 à M7), correspondant aux différentes hypothèses sur les relations entre les apports en nutriments et la richesse phytoplanctonique. Nous illustrons l'exemple du modèle M1 dans @lst-modele-glmm.
 
 ```{r}
-#| label: lst-modele-glmm
-#| code-caption: "Exemple de spécification d'un modèle GLMM de Poisson"
+#| lst-label: lst-modele-glmm
+#| lst-cap: "Exemple de spécification d'un modèle GLMM de Poisson"
 #| eval: false
 
 M1 <- glmmTMB(
@@ -2180,8 +2198,27 @@ classement <- MuMIn::model.sel(
 ```{r}
 #| label: valeurs-classement
 #| echo: false
-dl = setNames(res$dl, substr(names(hypotheses), 1, 2))
-w  = setNames(res$w,  substr(names(hypotheses), 1, 2))
+
+# Réutiliser les modèles M0 à M7 déjà ajustés.
+names(modeles.phy) <- names(hypotheses)
+aic.phy <- vapply(modeles.phy, AIC, numeric(1))
+delta.phy <- aic.phy - min(aic.phy)
+poids.phy <- exp(-delta.phy / 2)
+poids.phy <- poids.phy / sum(poids.phy)
+
+# Structure utilisée dans les analyses suivantes.
+res <- list(
+  ms = modeles.phy,
+  dl = delta.phy,
+  w = poids.phy,
+  ok = vapply(modeles.phy, function(m) {
+    isTRUE(m$sdr$pdHess) && m$fit$convergence == 0
+  }, logical(1))
+)
+
+dl <- setNames(res$dl, substr(names(hypotheses), 1, 2))
+w  <- setNames(res$w, substr(names(hypotheses), 1, 2))
+modele.choisi <- M3.phy
 ```
 
 Le meilleur modèle est M3 (@tbl-classement), qui contient les trois sources de phosphore (poids d'Akaike de `r round(w["M3"], 3)`). Deux autres modèles sont à moins de 2 points : M4 (ΔAIC de `r round(dl["M4"], 2)`) et M5 (ΔAIC de `r round(dl["M5"], 2)`). Tous contiennent le phosphore et ajoutent des variables qui n'améliorent pas l'AIC ; M3 est donc le plus parcimonieux du groupe. À l'inverse, les modèles sans phosphore (M0, M1, M2 et M6) sont tous à plus de `r floor(min(dl[c("M0", "M1", "M2", "M6")]))` points, y compris la référence M0 (ΔAIC de `r round(dl["M0"], 2)`). Dans ce cadre, le phosphore est le groupe d'apports qui présente le plus fort soutien statistique, tandis que l'ajout de la DBO et de l'azote municipal n'améliore pas l'AIC par rapport à M3. `M3` est retenu pour la suite.
@@ -2193,7 +2230,7 @@ Le meilleur modèle est M3 (@tbl-classement), qui contient les trois sources de 
 #| message: false
 #| warning: false
 
-as.data.frame(classement) %>%
+tableau.classement <- as.data.frame(classement) %>%
   tibble::rownames_to_column(var = "Modèle") %>%
   select(Modèle, df, logLik, AIC, delta, weight) %>%
   mutate(
@@ -2206,12 +2243,19 @@ as.data.frame(classement) %>%
     col.names = c("Modèle", "K (df)", "Log-Likelihood", "AIC", "ΔAIC", "Poids d'Akaike (wᵢ)"),
     align = c("l", "c", "r", "r", "r", "r"),
     caption = "Tableau de sélection des modèles de Poisson (GLMM)"
-  ) %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
-    full_width = FALSE
-  ) %>%
-  row_spec(1:3, bold = TRUE, background = "#e8f4ea") # Surligne M7 et M5 (ΔAIC < 2)
+  )
+
+# La mise en forme reste identique si kableExtra est installé.
+# Sinon, conserver la table et ses valeurs sans interrompre le rendu.
+if (requireNamespace("kableExtra", quietly = TRUE)) {
+  tableau.classement <- tableau.classement %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = FALSE
+    ) %>%
+    kableExtra::row_spec(1:3, bold = TRUE, background = "#e8f4ea")
+}
+tableau.classement
 ```
 
 ### Analyse des coefficients du modèle
@@ -2358,6 +2402,24 @@ par(mfrow = c(1, 1))
 ##### Résidus en fonction des valeurs ajustées
 Nous représentons les résidus de Pearson en fonction des valeurs prédites afin de détecter d'éventuelles tendances ou structures non prises en compte par le modèle.
 
+```{r}
+#| label: calcul-autocorrelation-phyto
+#| include: false
+
+# Même approche que dans l'annexe : autocorrélation de rang 1 des
+# résidus de Pearson moyens par année, dans l'ordre chronologique.
+residus.moyens.annee <- data.analyse.phy.GLMM %>%
+  mutate(residu = as.numeric(residuals(M3.phy, type = "pearson"))) %>%
+  group_by(year) %>%
+  summarise(residu = mean(residu, na.rm = TRUE), .groups = "drop") %>%
+  arrange(year)
+autocorr <- if (nrow(residus.moyens.annee) > 1L) {
+  unname(stats::acf(residus.moyens.annee$residu, lag.max = 1, plot = FALSE)$acf[2])
+} else {
+  NA_real_
+}
+```
+
 Dans notre cas, les résidus sont compris entre −2 et 1,5 environ et ne présentent pas de structure marquée @fig-residus-ajustes. Seules une légère tendance aux faibles valeurs ajustées (résidus plutôt négatifs) et une légère courbure aux valeurs extrêmes des phosphores municipal et industriel @fig-residus-x, où les observations sont peu nombreuses, sont visibles. La dispersion est de `r round(dispersion(modele.choisi), 2)`, ce qui exclut une surdispersion. En revanche, l'autocorrélation des résidus d'une année à la suivante est de `r round(autocorr, 2)`, valeur non négligeable : une dépendance entre années voisines subsiste après prise en compte des effets aléatoires. Elle constitue une limite du modèle.
 
 ```{r}
@@ -2502,6 +2564,21 @@ tibble(
 #### Vérification multicolinéarité
 Enfin, la colinéarité est évaluée par le facteur d'inflation de la variance (VIF), pour le modèle retenu et, à titre de comparaison, pour le modèle complet. La colinéarité est généralement jugée faible en dessous de 5, modérée entre 5 et 10, et forte au-delà de 10.
 
+```{r}
+#| label: calcul-vif-phyto
+#| include: false
+
+vif.de = function(m, nom) {
+  v = as.data.frame(check_collinearity(m))[, c("Term", "VIF")]
+  v$VIF = round(v$VIF, 1)
+  names(v)[2] = nom
+  v
+}
+vif.m7 = vif.de(res$ms[["M7 : toutes les sources"]], "M7")
+vif.m3 = vif.de(M3.phy, "M3")
+vif.tab = left_join(vif.m7, vif.m3, by = "Term")
+```
+
 Dans le modèle retenu, les VIF sont faibles. Le maximum est de `r max(vif.m3$M3)` (@tbl-vif). Les coefficients des trois sources de phosphore peuvent donc être interprétés séparément.
 
 Dans le modèle complet, le VIF maximal est de r max(vif.m7$M7) pour le phosphore municipal. Cela correspond à une colinéarité modérée. Certains apports varient conjointement, comme le phosphore municipal et la DBO municipale.
@@ -2515,15 +2592,6 @@ Les coefficients du modèle complet sont donc moins fiables que ceux de M3. Cela
 #| message: false
 #| warning: false
 
-vif.de = function(m, nom) {
-  v = as.data.frame(check_collinearity(m))[, c("Term", "VIF")]
-  v$VIF = round(v$VIF, 1)
-  names(v)[2] = nom
-  v
-}
-vif.m7 = vif.de(res$ms[["M7 : toutes les sources"]], "M7")
-vif.m3 = vif.de(M3.phy, "M3")
-vif.tab = left_join(vif.m7, vif.m3, by = "Term")
 kable(vif.tab)
 ```
 
@@ -2551,9 +2619,9 @@ Quatre modèles présentent un ΔAIC inférieur à 2 (M3, M4, M5 et M7). Plutôt
 moyenne.modeles = function(res) {
   sel = which(res$ok & res$dl < 2)
   w = exp(-res$dl[sel] / 2); w = w / sum(w)
-  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(fixef(m)$cond), "(Intercept)"))))
+  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(glmmTMB::fixef(m)$cond), "(Intercept)"))))
   est = sapply(termes, function(t) sum(w * sapply(res$ms[sel], function(m) {
-    b = fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
+    b = glmmTMB::fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
   data.frame(Terme = termes, `Effet moyen (%)` = round(100 * (exp(est) - 1), 1),
              check.names = FALSE, row.names = NULL)
 }
@@ -2584,15 +2652,15 @@ tibble(
   `Année` = c("aléatoire", "aléatoire", "fixe", "fixe"),
   Modèle = c("M0", "M3", "M0", "M3"),
   AIC = c(AIC(m0.alea), AIC(modele.choisi), AIC(m0.fixe), AIC(m3.fixe)),
-  `Effet de l'année (%)` = c(NA, NA, 100 * (exp(fixef(m0.fixe)$cond["yr"]) - 1), 100 * (exp(fixef(m3.fixe)$cond["yr"]) - 1)),
-  `Effet du phosphore industriel (%)` = c(NA, 100 * (exp(fixef(modele.choisi)$cond["z_P_industrial"]) - 1),
-                                           NA, 100 * (exp(fixef(m3.fixe)$cond["z_P_industrial"]) - 1)),
+  `Effet de l'année (%)` = c(NA, NA, 100 * (exp(glmmTMB::fixef(m0.fixe)$cond["yr"]) - 1), 100 * (exp(glmmTMB::fixef(m3.fixe)$cond["yr"]) - 1)),
+  `Effet du phosphore industriel (%)` = c(NA, 100 * (exp(glmmTMB::fixef(modele.choisi)$cond["z_P_industrial"]) - 1),
+                                           NA, 100 * (exp(glmmTMB::fixef(m3.fixe)$cond["z_P_industrial"]) - 1)),
   `p (phosphore industriel)` = c("", fmt.p(summary(modele.choisi)$coefficients$cond["z_P_industrial", 4]),
                                   "", fmt.p(summary(m3.fixe)$coefficients$cond["z_P_industrial", 4]))
 ) %>% kable(digits = 1)
 ```
 
-Lorsque l'année est une tendance fixe, elle explique l'essentiel de la variation (+`r round(100 * (exp(fixef(m0.fixe)$cond["yr"]) - 1), 0)` % de richesse par écart-type) et le phosphore industriel n'a plus d'effet. Les nutriments n'améliorent alors plus le modèle : l'AIC de M3 (`r round(AIC(m3.fixe), 1)`) est supérieur à celui de M0 (`r round(AIC(m0.fixe), 1)`). L'effet du phosphore industriel observé précédemment provient donc très probablement de la tendance temporelle, les apports ayant diminué pendant que la richesse augmentait. Il s'agit de la principale limite de cette partie, dont il faut tenir compte avant de conclure à un effet du phosphore.
+Lorsque l'année est une tendance fixe, elle explique l'essentiel de la variation (+`r round(100 * (exp(glmmTMB::fixef(m0.fixe)$cond["yr"]) - 1), 0)` % de richesse par écart-type) et le phosphore industriel n'a plus d'effet. Les nutriments n'améliorent alors plus le modèle : l'AIC de M3 (`r round(AIC(m3.fixe), 1)`) est supérieur à celui de M0 (`r round(AIC(m0.fixe), 1)`). L'effet du phosphore industriel observé précédemment provient donc très probablement de la tendance temporelle, les apports ayant diminué pendant que la richesse augmentait. Il s'agit de la principale limite de cette partie, dont il faut tenir compte avant de conclure à un effet du phosphore.
 
 #### Valeurs ajustées contre valeurs observées
 
@@ -2627,12 +2695,47 @@ Le test présenté plus haut étant proche du seuil (p = `r fmt.p(comp$"Pr(>Chis
 #| message: false
 #| warning: false
 
-par.secteur = lapply(levels( data.analyse.phy.GLMM$area), function(a) {
-  d =  data.analyse.phy.GLMM %>%
+# Les hypothèses M0–M7 sont identiques à celles du modèle commun.
+# Dans un secteur isolé, area est constante et ne peut pas être estimée.
+# On conserve donc les deux effets aléatoires, sans effet fixe area.
+classer.par.secteur <- function(hypotheses, donnees, famille) {
+  formules.secteur <- lapply(hypotheses, function(variables) {
+    partie.fixe <- if (identical(variables, "1")) "1" else paste(variables, collapse = " + ")
+    as.formula(paste("phyto_richness ~", partie.fixe,
+                     "+ (1 | annee) + (1 | sub_basin)"))
+  })
+  modeles.secteur <- lapply(formules.secteur, function(formule) {
+    tryCatch(
+      suppressWarnings(glmmTMB(formule, data = donnees, family = famille)),
+      error = function(e) NULL
+    )
+  })
+  ok <- vapply(modeles.secteur, function(modele) {
+    !is.null(modele) && isTRUE(modele$sdr$pdHess) && modele$fit$convergence == 0
+  }, logical(1))
+  aic <- vapply(modeles.secteur, function(modele) {
+    if (is.null(modele)) NA_real_ else AIC(modele)
+  }, numeric(1))
+  aic[!ok | !is.finite(aic)] <- NA_real_
+  if (all(is.na(aic))) stop("Aucun modèle par secteur n'a convergé.")
+  dl <- aic - min(aic, na.rm = TRUE)
+  poids <- exp(-dl / 2)
+  poids <- poids / sum(poids, na.rm = TRUE)
+  list(
+    ok = ok, dl = dl,
+    tab = data.frame(Modèle = names(hypotheses), `ΔAIC` = dl,
+                     Poids = poids, check.names = FALSE)
+  )
+}
+
+sources <- c("P_municipal", "P_industrial", "P_other", "N_municipal",
+             "BOD_municipal", "BOD_industrial")
+par.secteur = lapply(levels(data.analyse.phy.GLMM$area), function(a) {
+  d = data.analyse.phy.GLMM %>%
     filter(area == a) %>%
     mutate(across(all_of(sources), ~ as.numeric(scale(.x)), .names = "z_{.col}"))
-  r = classer(hypotheses, d, poisson)
-  best = r$tab[which(r$ok & r$dl < 2), ]
+  r = classer.par.secteur(hypotheses, d, poisson)
+  best = r$tab[which(r$ok & r$dl < 2), , drop = FALSE]
   data.frame(Secteur = a, n = nrow(d), Modèle = best$Modèle, `ΔAIC` = best$`ΔAIC`, Poids = best$Poids,
              check.names = FALSE)
 }) %>% bind_rows()
@@ -3068,9 +3171,9 @@ moyenne.modeles = function(res) {
   sel = which(res$ok & res$dl < 2)
   if (length(sel) < 2) return(NULL)
   w = exp(-res$dl[sel] / 2); w = w / sum(w)
-  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(fixef(m)$cond), "(Intercept)"))))
+  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(glmmTMB::fixef(m)$cond), "(Intercept)"))))
   est = sapply(termes, function(t) sum(w * sapply(res$ms[sel], function(m) {
-    b = fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
+    b = glmmTMB::fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
   data.frame(Terme = termes, `Effet moyen (%)` = round(100 * (exp(est) - 1), 1),
              check.names = FALSE, row.names = NULL)
 }
@@ -3394,7 +3497,7 @@ kable(tab.effets(modele.commun))
 sd.sb = attr(VarCorr(modele.commun)$cond$sub_basin, "stddev")
 ```
 
-Dans ce modèle, l'année domine (+`r round(100 * (exp(fixef(modele.commun)$cond["yr"]) - 1), 0)` % par écart-type) et la DBO a un effet positif. En revanche, l'écart-type de l'effet aléatoire est pratiquement nul (`r format(sd.sb, digits = 2)`), donc une fois les variables prises en compte les sous-bassins ne diffèrent pas entre eux. Ce modèle suppose aussi que le Nord et le Centre réagissent de la même façon, ce que nous testons maintenant.
+Dans ce modèle, l'année domine (+`r round(100 * (exp(glmmTMB::fixef(modele.commun)$cond["yr"]) - 1), 0)` % par écart-type) et la DBO a un effet positif. En revanche, l'écart-type de l'effet aléatoire est pratiquement nul (`r format(sd.sb, digits = 2)`), donc une fois les variables prises en compte les sous-bassins ne diffèrent pas entre eux. Ce modèle suppose aussi que le Nord et le Centre réagissent de la même façon, ce que nous testons maintenant.
 
 #### Pourquoi séparer le Nord et le Centre ?
 
@@ -3707,9 +3810,16 @@ corr.z = function(d, titre) {
 }
 
 corr.z(data.glmm.phyto, "Tous secteurs")
-for (a in secteurs) {
-  corr.z(filter(data.glmm.phyto, area == a), sub(" Paijanne", "", a))
-}
+
+corr.z(
+  filter(data.glmm.phyto, area == secteurs[1]),
+  sub(" Paijanne", "", secteurs[1])
+)
+
+corr.z(
+  filter(data.glmm.phyto, area == secteurs[2]),
+  sub(" Paijanne", "", secteurs[2])
+)
 ```
 
 La DBO suit nettement le temps : `zB` et `yr` sont fortement corrélées négativement, dans tout le lac comme dans chaque secteur ($r \approx -0{,}8$), et c'est la colinéarité la plus gênante pour la suite. Le phosphore est lui aussi lié à la DBO et à l'année, surtout à l'intérieur de chaque secteur ($|r|$ entre 0,7 et 0,8), `zP` baissant avec le temps et avec la DBO. L'azote est lié au phosphore (`zN` et `zP` : $r = 0{,}85$ pour tout le lac) mais pas à l'année (`zN` et `yr` : $r \approx 0$ pour tout le lac). Il apporte donc peu d'information en plus de `zP` et n'explique pas la tendance temporelle, ce qui conforte son retrait des modèles (@fig-correlation-z).
@@ -3783,9 +3893,9 @@ moyenne.modeles = function(res) {
   sel = which(res$ok & res$dl < 2)
   if (length(sel) < 2) return(NULL)
   w = exp(-res$dl[sel] / 2); w = w / sum(w)
-  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(fixef(m)$cond), "(Intercept)"))))
+  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(glmmTMB::fixef(m)$cond), "(Intercept)"))))
   est = sapply(termes, function(t) sum(w * sapply(res$ms[sel], function(m) {
-    b = fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
+    b = glmmTMB::fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
   data.frame(Terme = termes, `Effet moyen (%)` = round(100 * (exp(est) - 1), 1),
              check.names = FALSE, row.names = NULL)
 }
