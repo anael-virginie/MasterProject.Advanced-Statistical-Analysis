@@ -2658,7 +2658,7 @@ kable(vif.tab)
 ```
 
 
-### Conclusion sur les facteurs qui influencent la richesse du phytoplancton
+### Discussion sur les facteurs qui influencent la richesse du phytoplancton
 
 Le modèle M3, fondé sur les apports de phosphore, présente le meilleur compromis entre ajustement et complexité selon ΔAIC. Seul le phosphore industriel montre une association négative proche du seuil de significativité. Les effets aléatoires, principalement celui de l'année, contribuent fortement au pouvoir explicatif du modèle.
 
@@ -2666,6 +2666,7 @@ Bien que la dispersion soit compatible avec une loi de Poisson, le test d'unifor
 
 Il est également important de rappeler que le phosphore industriel est corrélé à l'azote industriel, exclu des modèles. Ainsi, l'association observée avec la richesse phytoplanctonique pourrait également être liée aux apports d'azote industriel, sans que leur contribution puisse être confirmée par les modèles étudiés.
 
+::: {.callout-note collapse="true" title="Perspectives de la richesse phytoplanctonique"}
 ### Perspectives
 #### Moyenne de modèles
 
@@ -2811,6 +2812,7 @@ Le classement diffère entre les deux secteurs, et aucun d'eux ne retient M3. Da
 - Les apports sont mesurés par secteur et par année, puis recopiés sur chaque sous-bassin : les observations d'un même secteur et d'une même année ne sont donc pas indépendantes pour ces variables (pseudo-réplication). Il serait pertinent de vérifier que les conclusions se maintiennent sur des moyennes par secteur et par année.
 - Les sources sont fortement corrélées entre elles (par exemple le phosphore municipal et la DBO municipale, r = `r round(cor( data.analyse.phy.GLMM$z_P_municipal,  data.analyse.phy.GLMM$z_BOD_municipal), 2)`). Le regroupement des sources en totaux de phosphore et de DBO réduirait cette colinéarité.
 - L'autocorrélation des résidus d'une année à l'autre (`r round(autocorr, 2)`) suggère de tester une structure de corrélation temporelle.
+:::
 
 ### Partie Fish catch
 #### GLMM
@@ -3092,7 +3094,7 @@ Afin d'appréhender cette surdispersion un modèle construit sans area en effet 
 #| label: mod-fish-NBsum
 summary(m_fish_NB)
 ```
-BOD_municipal présente un coefficient de 0.1772 pour une pvalue significative de 0.029. Cet effet à prendre avec prudence au regard de la surdispersion du modèle, suggère que la BOD est positivement corrélée aux captures pour les rejets municipaux. Cependant, cet effet s'inverse concernant les rejets industriels (estimate = -0.137, pvalue = 0.0458), la pvalue reste très proche du seuil de 0.05 pour cet effet. L'effet de l'azote associé aux rejets municipaux ne s'avère pas significatif. Le coefficient positif (estimate = 0.278) suggère néanmoins qu'il y aurait un lien positif entre la biomasse de poissons et la concentration en azote. Enfin, la zone Northen Paijane semble fortement corrélée négativement avec les captures de poissons (estimate = -0.641) bien que cette corrélation ne soit pas significative (pvalue = 0.088). 
+BOD_municipal présente un coefficient de 0.1772 pour une pvalue significative de 0.029. Cet effet à prendre avec prudence au regard de la surdispersion du modèle, suggère que la BOD est positivement corrélée aux captures pour les rejets municipaux. Cependant, cet effet s'inverse concernant les rejets industriels (estimate = -0.146, pvalue = 0.0458), la pvalue reste très proche du seuil de 0.05 pour cet effet. L'effet de l'azote associé aux rejets municipaux ne s'avère pas significatif. Le coefficient positif (estimate = 0.278) suggère néanmoins qu'il y aurait un lien positif entre la biomasse de poissons et la concentration en azote. Enfin, la zone Northen Paijane semble fortement corrélée négativement avec les captures de poissons (estimate = -0.641) bien que cette corrélation ne soit pas significative (pvalue = 0.088). 
 
 
 ###### Représentation graphique finale du modèle choisi
@@ -3130,153 +3132,18 @@ ggplot(predictions, aes(x = x, y = predicted)) +
   theme_bw()
 ```
 
-::: {.callout-note collapse="true" title="Annexe à titre exploratoire"}
-
-##### Variables agrégées {#sec-fish-agregees}
-
-###### Choix de la loi
-
-Pour voir le choix de la loi, voir : @sec-fish-choix-model (même conclusion pour les variables agrégées : choix d'un GLMM de loi Gamma).
-
-###### Hypothèses des modèles
-
-- Ma (`m_add`) : mêmes effets que M1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif).
-- Mb (`m_int`) : l'effet d'au moins une variable (phosphore, azote, BOD ou année) diffère selon l'area (modèle avec interaction).
-- M1 (`m_fish_PA`) : seul le phosphore a un effet sur les captures indépendamment de l'origine du rejet.
-- M2 (`m_fish_BODA`) : seule la BOD a un effet sur les captures indépendamment de l'origine du rejet.
-- M3 (`m_fish_PBA`) : le phosphore et la BOD influencent les captures de façon additive, indépendamment de l'origine du rejet.
-- M4 (`m_fish_CompletA`) : tous les nutriments ont un effet sur les captures indépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; BOD municipale et industrielle, avec l'année).
-
-###### Vérification des différences d'effets entre areas
-
-Modèle sans interaction area :
-
-```{r}
-#| label: mod-add-area
-
-m_add <- glmmTMB(
-  fish_catch ~ P_total + N_total + BOD_total + year + area +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-Modèle avec interaction area :
-
-```{r}
-#| label: mod-int-area
-
-m_int <- glmmTMB(
-  fish_catch ~ (P_total + N_total + BOD_total + year) * area +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-```{r}
-#| label: sum-int-area
-
-summary(m_int)
-```
-
-L'effet de la BOD diffère selon l'area : il est significatif pour North.
-
-```{r}
-#| label: tbl-anova-add-int
-#| tbl-cap: "Comparaison des modèles avec et sans interaction area (ANOVA)"
-
-anova(m_add, m_int)
-```
-
-L'effet d'au moins une variable explicative varie significativement selon l'area (p = 0,029).
-
-```{r}
-#| label: tbl-aic-add-int
-#| tbl-cap: "Comparaison AIC des modèles avec et sans interaction area"
-
-AIC(m_add, m_int)
-```
-
-Le modèle avec interaction est meilleur selon l'AIC (AIC = -102 contre -105).
-
-###### Création des modèles
-
-**Modèle P**
-
-```{r}
-#| label: mod-fish-pA
-
-m_fish_PA <- glmmTMB(
-  fish_catch ~ P_total + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-**Modèle BOD**
-
-```{r}
-#| label: mod-fish-bodA
-
-m_fish_BODA <- glmmTMB(
-  fish_catch ~ BOD_total + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-**Modèle phosphore et BOD**
-
-```{r}
-#| label: mod-fish-PBA
-
-m_fish_PBA <- glmmTMB(
-  fish_catch ~ P_total + BOD_total + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-**Modèle complet**
-
-```{r}
-#| label: mod-fish-completA
-
-m_fish_CompletA <- glmmTMB(
-  fish_catch ~ P_total + N_total + BOD_total + year +
-    (1 | sub_basin),
-  family = Gamma(link = "log"),
-  data = data.analyse.fish.GLMM
-)
-```
-
-```{r}
-#| label: sum-fish-complet
-
-summary(m_fish_CompletA)
-```
-
-:::
-
 ##### Discussion fish catch
 
 Le modèle conservé pour l'interprétation des effets des nutriments sur les captures de poissons a permis de mettre en évidence plusieurs effets potentiels. Ces effets sont à prendre avec prudence sachant que le modèle présente une surdispersion. Ils concernent uniquement la demande biologique en oxygène (BOD) qui traduit indirectement la quantité de matière organique biodégradable. Celle-ci a d'un côté un effet positif sur la quantité de capture lorsqu'elle provient des rejets municipaux et de l'autre un effet négatif lorsqu'elle provient des rejets industriels. Cette ambivalence dans l'effet de ce facteur pourrait mettre en cause une différence dans la "qualité" de la matière organique selon le type de rejet. L'une pouvant potentiellement favoriser la chaine trophique et donc la croissance des populations de poissons quand l'autre la défavorise.  
 
 
-
-# Discussion
-
-
-# Conclusion
+# Conclusion génèrale
 
 
 # Annexe
 Cette partie constitue du code réaliser mais non finaliser ou pas explorer complètement. Celui-ci ne sera pas présenter, mais servira d'appuie pour certaines questions ou prespectives présenter lors de la présentation.
+
+::: {.callout-note collapse="true" title="Analyses complémentaires de la richesse phytoplanctonique"}
 
 ## Annexe — Analyses complémentaires de la richesse phytoplanctonique {#sec-annexe-phyto}
 
@@ -4333,7 +4200,7 @@ corr.z(
 )
 ```
 
-La DBO suit nettement le temps : `zB` et `yr` sont fortement corrélées négativement, dans tout le lac comme dans chaque secteur ($r \approx -0{,}8$), et c'est la colinéarité la plus gênante pour la suite. Le phosphore est lui aussi lié à la DBO et à l'année, surtout à l'intérieur de chaque secteur ($|r|$ entre 0,7 et 0,8), `zP` baissant avec le temps et avec la DBO. L'azote est lié au phosphore (`zN` et `zP` : $r = 0{,}85$ pour tout le lac) mais pas à l'année (`zN` et `yr` : $r \approx 0$ pour tout le lac). Il apporte donc peu d'information en plus de `zP` et n'explique pas la tendance temporelle, ce qui conforte son retrait des modèles (@fig-correlation-z).
+La DBO suit nettement le temps : `zB` et `yr` sont fortement corrélées négativement, dans tout le lac comme dans chaque secteur ($r \approx -0{,}8$), et c'est la colinéarité la plus gênante pour la suite. Le phosphore est lui aussi lié à la DBO et à l'année, surtout à l'intérieur de chaque secteur ($|r|$ entre 0,7 et 0,8), `zP` baissant avec le temps et avec la DBO. L'azote est lié au phosphore (`zN` et `zP` : $r = 0{,}85$ pour tout le lac) mais pas à l'année (`zN` et `yr` : $r \approx 0$ pour tout le lac). Il apporte donc peu d'information en plus de `zP` et n'explique pas la tendance temporelle, ce qui conforte son retrait des modèles (@ann-fig-correlation-z).
 
 ```{r}
 #| label: tbl-vif-secteur
@@ -4605,4 +4472,138 @@ Dans les deux secteurs du lac, la richesse du phytoplancton augmente d'année en
 Le Nord et le Centre ne réagissent donc pas de la même façon, ce que confirme le test d'interaction, et c'est ce qui justifie deux modèles. Le GLMM de départ ne servait qu'à justifier ce choix, puisque l'effet du sous-bassin est négligeable, et le modèle final est un GLM par secteur, avec une loi de Poisson au Centre (dispersion inférieure à 1) et une binomiale négative au Nord.
 
 Une limite à garder en tête est que les apports sont mesurés par secteur et par année puis recopiés sur chaque sous-bassin, ce qui fait que les observations d'un même secteur et d'une même année ne sont pas indépendantes pour ces variables. Il serait prudent de vérifier que les conclusions restent les mêmes sur des moyennes par secteur et par année.
+:::
 
+
+::: {.callout-note collapse="true" title="Analyses complémentaires de la capture de poissons"}
+
+## Variables agrégées {#sec-fish-agregees}
+
+### Choix de la loi
+
+Pour voir le choix de la loi, voir : @sec-fish-choix-model (même conclusion pour les variables agrégées : choix d'un GLMM de loi Gamma).
+
+### Hypothèses des modèles
+
+- Ma (`m_add`) : mêmes effets que M1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif).
+- Mb (`m_int`) : l'effet d'au moins une variable (phosphore, azote, BOD ou année) diffère selon l'area (modèle avec interaction).
+- M1 (`m_fish_PA`) : seul le phosphore a un effet sur les captures indépendamment de l'origine du rejet.
+- M2 (`m_fish_BODA`) : seule la BOD a un effet sur les captures indépendamment de l'origine du rejet.
+- M3 (`m_fish_PBA`) : le phosphore et la BOD influencent les captures de façon additive, indépendamment de l'origine du rejet.
+- M4 (`m_fish_CompletA`) : tous les nutriments ont un effet sur les captures indépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; BOD municipale et industrielle, avec l'année).
+
+### Vérification des différences d'effets entre areas
+
+Modèle sans interaction area :
+
+```{r}
+#| label: mod-add-area
+
+m_add <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year + area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle avec interaction area :
+
+```{r}
+#| label: mod-int-area
+
+m_int <- glmmTMB(
+  fish_catch ~ (P_total + N_total + BOD_total + year) * area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-int-area
+
+summary(m_int)
+```
+
+L'effet de la BOD diffère selon l'area : il est significatif pour North.
+
+```{r}
+#| label: tbl-anova-add-int
+#| tbl-cap: "Comparaison des modèles avec et sans interaction area (ANOVA)"
+
+anova(m_add, m_int)
+```
+
+L'effet d'au moins une variable explicative varie significativement selon l'area (p = 0,029).
+
+```{r}
+#| label: tbl-aic-add-int
+#| tbl-cap: "Comparaison AIC des modèles avec et sans interaction area"
+
+AIC(m_add, m_int)
+```
+
+Le modèle avec interaction est meilleur selon l'AIC (AIC = -102 contre -105).
+
+### Création des modèles
+
+**Modèle P**
+
+```{r}
+#| label: mod-fish-pA
+
+m_fish_PA <- glmmTMB(
+  fish_catch ~ P_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle BOD**
+
+```{r}
+#| label: mod-fish-bodA
+
+m_fish_BODA <- glmmTMB(
+  fish_catch ~ BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle phosphore et BOD**
+
+```{r}
+#| label: mod-fish-PBA
+
+m_fish_PBA <- glmmTMB(
+  fish_catch ~ P_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle complet**
+
+```{r}
+#| label: mod-fish-completA
+
+m_fish_CompletA <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-fish-complet
+
+summary(m_fish_CompletA)
+```
+
+:::
