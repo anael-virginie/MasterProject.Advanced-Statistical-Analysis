@@ -1438,6 +1438,139 @@ ggplot(predictions, aes(x = x, y = predicted)) +
   theme_bw()
 ```
 
+::: {.callout-note collapse="true" title="Annexe à titre exploratoire"}
+
+##### Variables agrégées {#sec-fish-agregees}
+
+###### Choix de la loi
+
+Pour voir le choix de la loi, voir : @sec-fish-choix-model (même conclusion pour les variables agrégées : choix d'un GLMM de loi Gamma).
+
+###### Hypothèses des modèles
+
+- Ma (`m_add`) : mêmes effets que M1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif).
+- Mb (`m_int`) : l'effet d'au moins une variable (phosphore, azote, DBO ou année) diffère selon l'area (modèle avec interaction).
+- M1 (`m_fish_PA`) : seul le phosphore a un effet sur les captures indépendamment de l'origine du rejet.
+- M2 (`m_fish_BODA`) : seule la DBO a un effet sur les captures indépendamment de l'origine du rejet.
+- M3 (`m_fish_PBA`) : le phosphore et la DBO influencent les captures de façon additive, indépendamment de l'origine du rejet.
+- M4 (`m_fish_CompletA`) : tous les nutriments ont un effet sur les captures indépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; DBO municipale et industrielle, avec l'année).
+
+###### Vérification des différences d'effets entre areas
+
+Modèle sans interaction area :
+
+```{r}
+#| label: mod-add-area
+
+m_add <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year + area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle avec interaction area :
+
+```{r}
+#| label: mod-int-area
+
+m_int <- glmmTMB(
+  fish_catch ~ (P_total + N_total + BOD_total + year) * area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-int-area
+
+summary(m_int)
+```
+
+L'effet de la DBO diffère selon l'area : il est significatif pour North.
+
+```{r}
+#| label: tbl-anova-add-int
+#| tbl-cap: "Comparaison des modèles avec et sans interaction area (ANOVA)"
+
+anova(m_add, m_int)
+```
+
+L'effet d'au moins une variable explicative varie significativement selon l'area (p = 0,029).
+
+```{r}
+#| label: tbl-aic-add-int
+#| tbl-cap: "Comparaison AIC des modèles avec et sans interaction area"
+
+AIC(m_add, m_int)
+```
+
+Le modèle avec interaction est meilleur selon l'AIC (AIC = -102 contre -105).
+
+###### Création des modèles
+
+**Modèle P**
+
+```{r}
+#| label: mod-fish-pA
+
+m_fish_PA <- glmmTMB(
+  fish_catch ~ P_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle DBO**
+
+```{r}
+#| label: mod-fish-bodA
+
+m_fish_BODA <- glmmTMB(
+  fish_catch ~ BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle phosphore et DBO**
+
+```{r}
+#| label: mod-fish-PBA
+
+m_fish_PBA <- glmmTMB(
+  fish_catch ~ P_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle complet**
+
+```{r}
+#| label: mod-fish-completA
+
+m_fish_CompletA <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-fish-complet
+
+summary(m_fish_CompletA)
+```
+
+:::
+
 # Discussion
 
 Le modèle conservé pour l'interprétation des effets des nutriments sur les captures de poissons a permis de mettre en évidence plusieurs effets potentiels. Ces effets sont à prendre avec prudence sachant que le modèle présente une surdispersion. Ils concernent uniquement la demande biologique en oxygene (BOD) qui traduit indirectement la quantité de matière organique biodégradable. Celle-ci a d'un coté un effet positif sur la quantité de capture lorsqu'elle provient des rejets municipaux et de l'autre un effet négatif lorsqu'elle provient des rejets industriels. Cette ambivalence dans l'effet de ce facteur pourrait mettre en cause une différence dans la "qualité" de la matiere organique selon le type de rejet. L'une pouvant potentiellement favoriser la chaine trophique et donc la croissance des populations de poissons quand l'autre la défavorise. 
