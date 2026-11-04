@@ -99,8 +99,8 @@ resume_numerique <- function(df) {
       n = sum(!is.na(valeur)),
       NA_n = sum(is.na(valeur)),
       min = min(valeur, na.rm = TRUE),
-      mediana = median(valeur, na.rm = TRUE),
-      media = mean(valeur, na.rm = TRUE),
+      medianne = median(valeur, na.rm = TRUE),
+      moyenne = mean(valeur, na.rm = TRUE),
       max = max(valeur, na.rm = TRUE),
       sd = sd(valeur, na.rm = TRUE),
       .groups = "drop"

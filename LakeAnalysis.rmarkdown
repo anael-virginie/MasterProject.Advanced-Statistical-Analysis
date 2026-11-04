@@ -35,10 +35,7 @@ Pour répondre à ces questions, nous analysons l'évolution spatiale et tempore
 L'analyse est réalisée en plusieurs étapes. Nous commençons par une exploration descriptive des données afin d'examiner leur structure, leurs distributions et les éventuelles valeurs manquantes. Nous étudions ensuite les relations entre les variables environnementales et biologiques, ainsi que les corrélations entre les différents nutriments. Enfin, des approches multivariées et des modèles statistiques seront utilisés pour identifier les facteurs les plus fortement associés aux variations observées des communautés biologiques.
 
 # Graphical Abstract
-<!-- draw.io diagram -->
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;" data-mxgraph="{&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;resize&quot;:true,&quot;dark-mode&quot;:&quot;auto&quot;,&quot;toolbar&quot;:&quot;zoom layers tags lightbox&quot;,&quot;edit&quot;:&quot;_blank&quot;,&quot;url&quot;:&quot;https://drive.google.com/uc?id=1KG8fhL8v02HRD0scb6H9257Si9ieA-XT&amp;export=download&quot;}"></div>
-<script type="text/javascript" src="https://viewer.diagrams.net/embed2.js?&fetch=https%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1KG8fhL8v02HRD0scb6H9257Si9ieA-XT%26export%3Ddownload"></script>
-
+<img src="GraphicalAbstract.svg" style="filter: none !important;" width="100%" />
 
 ```{r initialisation}
 #| include: false
@@ -56,6 +53,11 @@ library(performance)
 library(vegan)
 library(missMDA)
 library(Hmisc)
+library(MuMIn)
+library(lme4)
+library(ggeffects)
+library(ggplot2)
+library(dplyr)
 knitr::opts_chunk$set(fig.align = "center", fig.width = 9, fig.height = 5)
 theme_set(theme_minimal(base_size = 12))
 
@@ -97,8 +99,8 @@ resume_numerique <- function(df) {
       n = sum(!is.na(valeur)),
       NA_n = sum(is.na(valeur)),
       min = min(valeur, na.rm = TRUE),
-      mediana = median(valeur, na.rm = TRUE),
-      media = mean(valeur, na.rm = TRUE),
+      medianne = median(valeur, na.rm = TRUE),
+      moyenne = mean(valeur, na.rm = TRUE),
       max = max(valeur, na.rm = TRUE),
       sd = sd(valeur, na.rm = TRUE),
       .groups = "drop"
@@ -144,7 +146,7 @@ data.biotic <- data.biotic %>%
          sub_basin = as.factor(sub_basin))
 ```
 
-Comme montré dans @tabl-glimpse-data, nous avons donc deux data sets.
+Comme montré dans @tbl-glimpse-data, nous avons donc deux data sets.
 
 `data.nutriment` comporte :
 
@@ -1184,21 +1186,29 @@ data.nutriment.impute[variables.nutriments] <-
 #| warning: false
 #| output: true
 
-# 1. Charger l'objet principal MIPCA (sauvegardé précédemment)
-# set.seed(123)
-# resultat.MIPCA <- missMDA::MIPCA(X.nutriments, ncp = ncp.estime$ncp, nboot = 1000, method.mi = "Bayes")
-# saveRDS(resultat.MIPCA, "resultat.MIPCA.rds")
-resultat.MIPCA <- readRDS("resultat.MIPCA.rds")
+# 1. Charger les résultats sauvegardés, ou les calculer s'ils sont absents.
+if (file.exists("resultat.MIPCA.rds")) {
+  resultat.MIPCA <- readRDS("resultat.MIPCA.rds")
+} else {
+  set.seed(123)
+  resultat.MIPCA <- missMDA::MIPCA(
+    X.nutriments, ncp = ncp.estime$ncp, nboot = 1000, method.mi = "Bayes"
+  )
+  saveRDS(resultat.MIPCA, "resultat.MIPCA.rds")
+}
 
-# 2. Charger et afficher le premier graphique (individus supplémentaires)
-# p_ind <- plot(resultat.MIPCA, choice = "ind.supp", axes = c(1, 2), new.plot = FALSE)
-# saveRDS(p_ind, "resultat.plot_ind_supp.rds")
-readRDS("resultat.MIPCA.plot_ind_supp.rds")
+# 2. Réutiliser à l'identique les figures sauvegardées, si disponibles.
+if (file.exists("resultat.MIPCA.plot_ind_supp.rds")) {
+  readRDS("resultat.MIPCA.plot_ind_supp.rds")
+} else {
+  plot(resultat.MIPCA, choice = "ind.supp", axes = c(1, 2), new.plot = FALSE)
+}
 
-# 3. Charger et afficher le second graphique (variables)
-# p_var <- plot(resultat.MIPCA, choice = "var", axes = c(1, 2), new.plot = FALSE)
-# saveRDS(p_var, "resultat.plot_var.rds")
-readRDS("resultat.MIPCA.plot_var.rds")
+if (file.exists("resultat.MIPCA.plot_var.rds")) {
+  readRDS("resultat.MIPCA.plot_var.rds")
+} else {
+  plot(resultat.MIPCA, choice = "var", axes = c(1, 2), new.plot = FALSE)
+}
 ```
 
 ```{r}
@@ -1286,8 +1296,8 @@ Pour chacune de ces versions, nous créons deux jeux de données distincts corre
 #| label: preparation-donnees-modeles
 #| include: false
 
-
-### 1️⃣ DATA SET SANS IMPUTATION ###
+# ------------------------------------ #
+### I. DATA SET SANS IMPUTATION ###
 # ACP : nutriments retenus sans valeurs manquantes
 data.nutriment.clean <- data.nutriment %>%
   select(-N_other, -N_industrial) %>%
@@ -1322,7 +1332,64 @@ data.analyse.fish <- data.analyse %>%
   filter(!is.na(fish_catch)) %>%
   select(-phyto_richness)
 
-### 2️⃣ DATA SET AVEC IMPUTATION ###
+# ------------------------------------ #
+### II. DATA SET ONE-TABLE AND SUMMED ###
+# Jointure pour les analyses Y ~ X (avec NA possibles et sans retrait des variables corrélés)
+
+#PHYTO
+
+# FISH
+{
+  data.nutriment.cor <- data.nutriment
+  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  
+  data.analyse.GLMM <- data.biotic %>%
+    left_join(
+      data.nutriment.cor,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    )
+  
+  stopifnot(nrow(data.analyse.GLMM) == nrow(data.biotic))
+  rm(data.nutriment.cor)
+}
+data.analyse.fish.GLMM <- data.analyse.GLMM %>%
+# 1. Création des variables agrégées
+mutate(
+P_total = P_municipal + P_industrial + P_other,
+N_total = N_municipal + N_industrial + N_other,
+BOD_total = BOD_municipal + BOD_industrial
+) %>%
+# 2. Suppression des observations incomplètes
+drop_na(
+phyto_richness, year, area, sub_basin,
+P_municipal, P_industrial, P_other,
+N_municipal,
+BOD_municipal, BOD_industrial,
+P_total, N_total, BOD_total
+) %>%
+
+# 3. Retrait des colonnes non désirées
+select(-N_other, -N_industrial) %>%
+
+# 4. Suppression des niveaux inutilisés et conversion de year en facteur
+mutate(
+sub_basin = droplevels(sub_basin),
+area = droplevels(area),
+annee = factor(year)
+) %>%
+
+# 4. Standardisation de toutes les variables sélectionnées
+mutate(
+across(
+c(P_municipal, P_industrial, P_other,
+N_municipal,
+BOD_municipal, BOD_industrial,
+P_total, N_total, BOD_total),
+~ as.numeric(scale(.x))))
+
+# ------------------------------------ #
+### III. DATA SET AVEC IMPUTATION ###
 # Jointure avec les nutriments imputés
 data.analyse.impute <- data.biotic %>%
   left_join(
@@ -2024,7 +2091,17 @@ Afin d'examiner cette hypothèse, nous comparons deux GLMM : un modèle avec des
 
 # 1. Modèle sans interaction
 # M7 contient déjà area comme effet fixe
-modele.area <- M7.phy
+modele.area <- glmmTMB(
+  phyto_richness ~
+    area +
+    z_P_municipal + z_P_industrial + z_P_other +
+    z_N_municipal +
+    z_BOD_municipal + z_BOD_industrial +
+    (1 | annee) +
+    (1 | sub_basin),
+  data = data.analyse.phy.GLMM,
+  family = poisson
+)
 
 # 2. Modèle avec interactions entre area et les apports
 modele.inter <- glmmTMB(
@@ -2094,8 +2171,8 @@ Après avoir examiné la distribution de la richesse phytoplanctonique et compar
 Nous définissons ensuite huit modèles (M0 à M7), correspondant aux différentes hypothèses sur les relations entre les apports en nutriments et la richesse phytoplanctonique. Nous illustrons l'exemple du modèle M1 dans @lst-modele-glmm.
 
 ```{r}
-#| label: lst-modele-glmm
-#| code-caption: "Exemple de spécification d'un modèle GLMM de Poisson"
+#| lst-label: lst-modele-glmm
+#| lst-cap: "Exemple de spécification d'un modèle GLMM de Poisson"
 #| eval: false
 
 M1 <- glmmTMB(
@@ -2183,8 +2260,27 @@ classement <- MuMIn::model.sel(
 ```{r}
 #| label: valeurs-classement
 #| echo: false
-dl = setNames(res$dl, substr(names(hypotheses), 1, 2))
-w  = setNames(res$w,  substr(names(hypotheses), 1, 2))
+
+# Réutiliser les modèles M0 à M7 déjà ajustés.
+names(modeles.phy) <- names(hypotheses)
+aic.phy <- vapply(modeles.phy, AIC, numeric(1))
+delta.phy <- aic.phy - min(aic.phy)
+poids.phy <- exp(-delta.phy / 2)
+poids.phy <- poids.phy / sum(poids.phy)
+
+# Structure utilisée dans les analyses suivantes.
+res <- list(
+  ms = modeles.phy,
+  dl = delta.phy,
+  w = poids.phy,
+  ok = vapply(modeles.phy, function(m) {
+    isTRUE(m$sdr$pdHess) && m$fit$convergence == 0
+  }, logical(1))
+)
+
+dl <- setNames(res$dl, substr(names(hypotheses), 1, 2))
+w  <- setNames(res$w, substr(names(hypotheses), 1, 2))
+modele.choisi <- M3.phy
 ```
 
 Le meilleur modèle est M3 (@tbl-classement), qui contient les trois sources de phosphore (poids d'Akaike de `r round(w["M3"], 3)`). Deux autres modèles sont à moins de 2 points : M4 (ΔAIC de `r round(dl["M4"], 2)`) et M5 (ΔAIC de `r round(dl["M5"], 2)`). Tous contiennent le phosphore et ajoutent des variables qui n'améliorent pas l'AIC ; M3 est donc le plus parcimonieux du groupe. À l'inverse, les modèles sans phosphore (M0, M1, M2 et M6) sont tous à plus de `r floor(min(dl[c("M0", "M1", "M2", "M6")]))` points, y compris la référence M0 (ΔAIC de `r round(dl["M0"], 2)`). Dans ce cadre, le phosphore est le groupe d'apports qui présente le plus fort soutien statistique, tandis que l'ajout de la DBO et de l'azote municipal n'améliore pas l'AIC par rapport à M3. `M3` est retenu pour la suite.
@@ -2196,7 +2292,7 @@ Le meilleur modèle est M3 (@tbl-classement), qui contient les trois sources de 
 #| message: false
 #| warning: false
 
-as.data.frame(classement) %>%
+tableau.classement <- as.data.frame(classement) %>%
   tibble::rownames_to_column(var = "Modèle") %>%
   select(Modèle, df, logLik, AIC, delta, weight) %>%
   mutate(
@@ -2209,12 +2305,19 @@ as.data.frame(classement) %>%
     col.names = c("Modèle", "K (df)", "Log-Likelihood", "AIC", "ΔAIC", "Poids d'Akaike (wᵢ)"),
     align = c("l", "c", "r", "r", "r", "r"),
     caption = "Tableau de sélection des modèles de Poisson (GLMM)"
-  ) %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
-    full_width = FALSE
-  ) %>%
-  row_spec(1:3, bold = TRUE, background = "#e8f4ea") # Surligne M7 et M5 (ΔAIC < 2)
+  )
+
+# La mise en forme reste identique si kableExtra est installé.
+# Sinon, conserver la table et ses valeurs sans interrompre le rendu.
+if (requireNamespace("kableExtra", quietly = TRUE)) {
+  tableau.classement <- tableau.classement %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = FALSE
+    ) %>%
+    kableExtra::row_spec(1:3, bold = TRUE, background = "#e8f4ea")
+}
+tableau.classement
 ```
 
 ### Analyse des coefficients du modèle
@@ -2361,6 +2464,24 @@ par(mfrow = c(1, 1))
 ##### Résidus en fonction des valeurs ajustées
 Nous représentons les résidus de Pearson en fonction des valeurs prédites afin de détecter d'éventuelles tendances ou structures non prises en compte par le modèle.
 
+```{r}
+#| label: calcul-autocorrelation-phyto
+#| include: false
+
+# Même approche que dans l'annexe : autocorrélation de rang 1 des
+# résidus de Pearson moyens par année, dans l'ordre chronologique.
+residus.moyens.annee <- data.analyse.phy.GLMM %>%
+  mutate(residu = as.numeric(residuals(M3.phy, type = "pearson"))) %>%
+  group_by(year) %>%
+  summarise(residu = mean(residu, na.rm = TRUE), .groups = "drop") %>%
+  arrange(year)
+autocorr <- if (nrow(residus.moyens.annee) > 1L) {
+  unname(stats::acf(residus.moyens.annee$residu, lag.max = 1, plot = FALSE)$acf[2])
+} else {
+  NA_real_
+}
+```
+
 Dans notre cas, les résidus sont compris entre −2 et 1,5 environ et ne présentent pas de structure marquée @fig-residus-ajustes. Seules une légère tendance aux faibles valeurs ajustées (résidus plutôt négatifs) et une légère courbure aux valeurs extrêmes des phosphores municipal et industriel @fig-residus-x, où les observations sont peu nombreuses, sont visibles. La dispersion est de `r round(dispersion(modele.choisi), 2)`, ce qui exclut une surdispersion. En revanche, l'autocorrélation des résidus d'une année à la suivante est de `r round(autocorr, 2)`, valeur non négligeable : une dépendance entre années voisines subsiste après prise en compte des effets aléatoires. Elle constitue une limite du modèle.
 
 ```{r}
@@ -2505,6 +2626,21 @@ tibble(
 #### Vérification multicolinéarité
 Enfin, la colinéarité est évaluée par le facteur d'inflation de la variance (VIF), pour le modèle retenu et, à titre de comparaison, pour le modèle complet. La colinéarité est généralement jugée faible en dessous de 5, modérée entre 5 et 10, et forte au-delà de 10.
 
+```{r}
+#| label: calcul-vif-phyto
+#| include: false
+
+vif.de = function(m, nom) {
+  v = as.data.frame(check_collinearity(m))[, c("Term", "VIF")]
+  v$VIF = round(v$VIF, 1)
+  names(v)[2] = nom
+  v
+}
+vif.m7 = vif.de(res$ms[["M7 : toutes les sources"]], "M7")
+vif.m3 = vif.de(M3.phy, "M3")
+vif.tab = left_join(vif.m7, vif.m3, by = "Term")
+```
+
 Dans le modèle retenu, les VIF sont faibles. Le maximum est de `r max(vif.m3$M3)` (@tbl-vif). Les coefficients des trois sources de phosphore peuvent donc être interprétés séparément.
 
 Dans le modèle complet, le VIF maximal est de r max(vif.m7$M7) pour le phosphore municipal. Cela correspond à une colinéarité modérée. Certains apports varient conjointement, comme le phosphore municipal et la DBO municipale.
@@ -2518,20 +2654,11 @@ Les coefficients du modèle complet sont donc moins fiables que ceux de M3. Cela
 #| message: false
 #| warning: false
 
-vif.de = function(m, nom) {
-  v = as.data.frame(check_collinearity(m))[, c("Term", "VIF")]
-  v$VIF = round(v$VIF, 1)
-  names(v)[2] = nom
-  v
-}
-vif.m7 = vif.de(res$ms[["M7 : toutes les sources"]], "M7")
-vif.m3 = vif.de(M3.phy, "M3")
-vif.tab = left_join(vif.m7, vif.m3, by = "Term")
 kable(vif.tab)
 ```
 
 
-### Conclusion sur les facteurs qui influencent la richesse du phytoplancton
+### Discussion sur les facteurs qui influencent la richesse du phytoplancton
 
 Le modèle M3, fondé sur les apports de phosphore, présente le meilleur compromis entre ajustement et complexité selon ΔAIC. Seul le phosphore industriel montre une association négative proche du seuil de significativité. Les effets aléatoires, principalement celui de l'année, contribuent fortement au pouvoir explicatif du modèle.
 
@@ -2539,6 +2666,7 @@ Bien que la dispersion soit compatible avec une loi de Poisson, le test d'unifor
 
 Il est également important de rappeler que le phosphore industriel est corrélé à l'azote industriel, exclu des modèles. Ainsi, l'association observée avec la richesse phytoplanctonique pourrait également être liée aux apports d'azote industriel, sans que leur contribution puisse être confirmée par les modèles étudiés.
 
+::: {.callout-note collapse="true" title="Perspectives de la richesse phytoplanctonique"}
 ### Perspectives
 #### Moyenne de modèles
 
@@ -2554,9 +2682,9 @@ Quatre modèles présentent un ΔAIC inférieur à 2 (M3, M4, M5 et M7). Plutôt
 moyenne.modeles = function(res) {
   sel = which(res$ok & res$dl < 2)
   w = exp(-res$dl[sel] / 2); w = w / sum(w)
-  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(fixef(m)$cond), "(Intercept)"))))
+  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(glmmTMB::fixef(m)$cond), "(Intercept)"))))
   est = sapply(termes, function(t) sum(w * sapply(res$ms[sel], function(m) {
-    b = fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
+    b = glmmTMB::fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
   data.frame(Terme = termes, `Effet moyen (%)` = round(100 * (exp(est) - 1), 1),
              check.names = FALSE, row.names = NULL)
 }
@@ -2587,15 +2715,15 @@ tibble(
   `Année` = c("aléatoire", "aléatoire", "fixe", "fixe"),
   Modèle = c("M0", "M3", "M0", "M3"),
   AIC = c(AIC(m0.alea), AIC(modele.choisi), AIC(m0.fixe), AIC(m3.fixe)),
-  `Effet de l'année (%)` = c(NA, NA, 100 * (exp(fixef(m0.fixe)$cond["yr"]) - 1), 100 * (exp(fixef(m3.fixe)$cond["yr"]) - 1)),
-  `Effet du phosphore industriel (%)` = c(NA, 100 * (exp(fixef(modele.choisi)$cond["z_P_industrial"]) - 1),
-                                           NA, 100 * (exp(fixef(m3.fixe)$cond["z_P_industrial"]) - 1)),
+  `Effet de l'année (%)` = c(NA, NA, 100 * (exp(glmmTMB::fixef(m0.fixe)$cond["yr"]) - 1), 100 * (exp(glmmTMB::fixef(m3.fixe)$cond["yr"]) - 1)),
+  `Effet du phosphore industriel (%)` = c(NA, 100 * (exp(glmmTMB::fixef(modele.choisi)$cond["z_P_industrial"]) - 1),
+                                           NA, 100 * (exp(glmmTMB::fixef(m3.fixe)$cond["z_P_industrial"]) - 1)),
   `p (phosphore industriel)` = c("", fmt.p(summary(modele.choisi)$coefficients$cond["z_P_industrial", 4]),
                                   "", fmt.p(summary(m3.fixe)$coefficients$cond["z_P_industrial", 4]))
 ) %>% kable(digits = 1)
 ```
 
-Lorsque l'année est une tendance fixe, elle explique l'essentiel de la variation (+`r round(100 * (exp(fixef(m0.fixe)$cond["yr"]) - 1), 0)` % de richesse par écart-type) et le phosphore industriel n'a plus d'effet. Les nutriments n'améliorent alors plus le modèle : l'AIC de M3 (`r round(AIC(m3.fixe), 1)`) est supérieur à celui de M0 (`r round(AIC(m0.fixe), 1)`). L'effet du phosphore industriel observé précédemment provient donc très probablement de la tendance temporelle, les apports ayant diminué pendant que la richesse augmentait. Il s'agit de la principale limite de cette partie, dont il faut tenir compte avant de conclure à un effet du phosphore.
+Lorsque l'année est une tendance fixe, elle explique l'essentiel de la variation (+`r round(100 * (exp(glmmTMB::fixef(m0.fixe)$cond["yr"]) - 1), 0)` % de richesse par écart-type) et le phosphore industriel n'a plus d'effet. Les nutriments n'améliorent alors plus le modèle : l'AIC de M3 (`r round(AIC(m3.fixe), 1)`) est supérieur à celui de M0 (`r round(AIC(m0.fixe), 1)`). L'effet du phosphore industriel observé précédemment provient donc très probablement de la tendance temporelle, les apports ayant diminué pendant que la richesse augmentait. Il s'agit de la principale limite de cette partie, dont il faut tenir compte avant de conclure à un effet du phosphore.
 
 #### Valeurs ajustées contre valeurs observées
 
@@ -2630,12 +2758,47 @@ Le test présenté plus haut étant proche du seuil (p = `r fmt.p(comp$"Pr(>Chis
 #| message: false
 #| warning: false
 
-par.secteur = lapply(levels( data.analyse.phy.GLMM$area), function(a) {
-  d =  data.analyse.phy.GLMM %>%
+# Les hypothèses M0–M7 sont identiques à celles du modèle commun.
+# Dans un secteur isolé, area est constante et ne peut pas être estimée.
+# On conserve donc les deux effets aléatoires, sans effet fixe area.
+classer.par.secteur <- function(hypotheses, donnees, famille) {
+  formules.secteur <- lapply(hypotheses, function(variables) {
+    partie.fixe <- if (identical(variables, "1")) "1" else paste(variables, collapse = " + ")
+    as.formula(paste("phyto_richness ~", partie.fixe,
+                     "+ (1 | annee) + (1 | sub_basin)"))
+  })
+  modeles.secteur <- lapply(formules.secteur, function(formule) {
+    tryCatch(
+      suppressWarnings(glmmTMB(formule, data = donnees, family = famille)),
+      error = function(e) NULL
+    )
+  })
+  ok <- vapply(modeles.secteur, function(modele) {
+    !is.null(modele) && isTRUE(modele$sdr$pdHess) && modele$fit$convergence == 0
+  }, logical(1))
+  aic <- vapply(modeles.secteur, function(modele) {
+    if (is.null(modele)) NA_real_ else AIC(modele)
+  }, numeric(1))
+  aic[!ok | !is.finite(aic)] <- NA_real_
+  if (all(is.na(aic))) stop("Aucun modèle par secteur n'a convergé.")
+  dl <- aic - min(aic, na.rm = TRUE)
+  poids <- exp(-dl / 2)
+  poids <- poids / sum(poids, na.rm = TRUE)
+  list(
+    ok = ok, dl = dl,
+    tab = data.frame(Modèle = names(hypotheses), `ΔAIC` = dl,
+                     Poids = poids, check.names = FALSE)
+  )
+}
+
+sources <- c("P_municipal", "P_industrial", "P_other", "N_municipal",
+             "BOD_municipal", "BOD_industrial")
+par.secteur = lapply(levels(data.analyse.phy.GLMM$area), function(a) {
+  d = data.analyse.phy.GLMM %>%
     filter(area == a) %>%
     mutate(across(all_of(sources), ~ as.numeric(scale(.x)), .names = "z_{.col}"))
-  r = classer(hypotheses, d, poisson)
-  best = r$tab[which(r$ok & r$dl < 2), ]
+  r = classer.par.secteur(hypotheses, d, poisson)
+  best = r$tab[which(r$ok & r$dl < 2), , drop = FALSE]
   data.frame(Secteur = a, n = nrow(d), Modèle = best$Modèle, `ΔAIC` = best$`ΔAIC`, Poids = best$Poids,
              check.names = FALSE)
 }) %>% bind_rows()
@@ -2649,23 +2812,338 @@ Le classement diffère entre les deux secteurs, et aucun d'eux ne retient M3. Da
 - Les apports sont mesurés par secteur et par année, puis recopiés sur chaque sous-bassin : les observations d'un même secteur et d'une même année ne sont donc pas indépendantes pour ces variables (pseudo-réplication). Il serait pertinent de vérifier que les conclusions se maintiennent sur des moyennes par secteur et par année.
 - Les sources sont fortement corrélées entre elles (par exemple le phosphore municipal et la DBO municipale, r = `r round(cor( data.analyse.phy.GLMM$z_P_municipal,  data.analyse.phy.GLMM$z_BOD_municipal), 2)`). Le regroupement des sources en totaux de phosphore et de DBO réduirait cette colinéarité.
 - L'autocorrélation des résidus d'une année à l'autre (`r round(autocorr, 2)`) suggère de tester une structure de corrélation temporelle.
+:::
+
+### Partie Fish catch
+#### GLMM
+##### Variables non-agrégées
+
+###### Hypothèses des modèles
+- M1 (`m_fish_N`) : seul l'azote a un effet sur les captures dépendamment de l'origine du rejet 
+- M2 (`m_fish_P`) : seul le phosphore a un effet sur les captures dépendamment de l'origine du rejet
+- M3 (`m_fish_BOD`) : seule la BOD a un effet sur les captures dépendamment de l'origine du rejet 
+- M4 (`m_fish_PB`) : le phosphore et la BOD influencent les captures de façon additive, dépendamment de l'origine du rejet 
+- M5 (`m_fish_NB`) : l'azote et la BOD influencent les captures de façon additive, dépendamment de l'origine du rejet
+- M6 (`m_fish_PN`) : le phosphore et l'azote influencent les captures de façon additive, dépendamment de l'origine du rejet
+- M7 (`m_fish_Complet`) : tous les nutriments ont un effet sur les captures de poissons dépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; BOD municipale et industrielle)
+
+Chacun des modèles intègre en effet aléatoire les sous-bassin (1|sub-basin) et l'année (1|year) pour se concentrer sur l'effet des nutriments et ainsi construire un modèle davantage adapté à la question de recherche. Cela permet de contrôler une partie de la variabilité des données non expliquée par les nutriments et d'éviter de l'attribuer à tort à ces derniers. Pour les mêmes raisons et sachant que la zone géographique (area) a un rôle dans la variabilité comme envisagé dans la partie exploratoire, il a été choisi de rajouter area en effet fixe à ces modèles.    
+
+###### Choix de la loi {#sec-fish-choix-model}
+
+Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma.
+
+```{r}
+#| label: mod-fish-GLMM
+
+# Modèle 
+m_fish_GLMM <- glmmTMB(fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + area + (1 | sub_basin) + (1|year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: res-gamma-fish
+
+# Diagnostic
+res <- simulateResiduals(m_fish_GLMM)
+```
+
+```{r}
+#| label: fig-residus-gamma-fish
+#| fig-cap: "Diagnostic des résidus simulés (DHARMa) du GLMM Gamma"
+plot(res)
+```
+
+```{r}
+#| label: fig-uniformite-gamma-fish
+#| fig-cap: "Test d'uniformité des résidus du GLMM Gamma"
+
+testUniformity(res)
+```
+
+```{r}
+#| label: fig-dispersion-gamma-fish
+#| fig-cap: "Test de dispersion des résidus du GLMM Gamma"
+
+testDispersion(res)
+```
+
+Légère surdispersion détectée p = 0.024
+
+```{r}
+#| label: fig-outliers-gamma-fish
+#| fig-cap: "Test des valeurs extrêmes (outliers) du GLMM Gamma"
+
+testOutliers(res)
+```
+
+Comme anticipé, on détecte une valeur extrême mais celle-ci n'est pas suffisante pour rejeter le modèle. Ici, l'objectif est simplement de construire un modèle que l'on va comparer pour aider à la décision de la loi, Gamma (GLMM) ou Gaussienne (LME).  
+
+Nous comparons donc ce modèle à un LME selon une distribution Gaussienne. 
+
+```{r}
+#| label: mod-lme-fish
+
+# Modèle 
+m_lme_fish <- lmer(
+  fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + area + 
+  (1 | sub_basin) + (1|year),
+  data = data.analyse.fish.GLMM,
+  REML = FALSE
+)
+```
+
+```{r}
+#| label: fig-diag-lme-fish
+#| fig-cap: "Diagnostic du LME : homoscédasticité (gauche) et normalité des résidus (droite)"
+#| fig-width: 10
+#| fig-height: 5
+
+# Diagnostic
+par(mfrow = c(1, 2))
+plot(
+  fitted(m_lme_fish),
+  residuals(m_lme_fish),
+  xlab = "Valeurs prédites",
+  ylab = "Résidus",
+  main = "LME : homoscédasticité"
+)
+abline(h = 0, lty = 2)
+qqnorm(residuals(m_lme_fish), main = "LME : normalité")
+qqline(residuals(m_lme_fish))
+par(mfrow = c(1, 1))
+```
+
+```{r}
+#| label: tbl-aic-gamma-lme
+#| tbl-cap: "Comparaison AIC entre le GLMM Gamma et le LME"
+
+## Comparaison AIC
+AIC(m_fish_GLMM, m_lme_fish)
+```
+
+Modèle gamma large favori (AIC = -95 vs AIC = -52)
+
+Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME après comparaison AIC.
+Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
+attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
+
+###### Définition des modèles
+
+Modèle N (M1): $$
+\text{fish\_catch} \sim N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+```{r}
+#| label: mod-fish-N
+
+m_fish_N <- glmmTMB(
+  fish_catch ~ N_municipal + area +
+    (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle P (M2): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+
+```{r}
+#| label: mod-fish-p
+
+m_fish_P <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + area + (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle BOD (M3): $$
+\text{fish\_catch} \sim BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+
+```{r}
+#| label: mod-fish-bod
+
+m_fish_BOD <- glmmTMB(
+  fish_catch ~ BOD_municipal + BOD_industrial + area +
+    (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle PB (M4): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+
+```{r}
+#| label: mod-fish-PB
+
+m_fish_PB <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + BOD_municipal + BOD_industrial + area +
+    (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle NB (M5): $$
+\text{fish\_catch} \sim N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+
+```{r}
+#| label: mod-fish-NB
+
+m_fish_NB <- glmmTMB(
+  fish_catch ~ N_municipal + BOD_municipal + BOD_industrial + area + (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle PN (M6): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+
+```{r}
+#| label: mod-fish-PN
+
+m_fish_PN <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + area +
+    (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+``` 
+
+Modèle complet (M7): $$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
+
+```{r}
+#| label: mod-fish-complet
+
+m_fish_Complet <- glmmTMB(
+  fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + area +
+    (1 | sub_basin) + (1 | year),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+###### Recherche du meilleur modèle via deltaAIC
+
+Comparaison AIC 
+
+```{r}
+#| label: tbl-model-sel-fish
+#| tbl-cap: "Sélection de modèles par AIC (P, BOD et modèle complet)"
+
+models_fish <- MuMIn::model.sel(
+  m_fish_P,
+  m_fish_N,
+  m_fish_BOD,
+  m_fish_PB,
+  m_fish_NB,
+  m_fish_PN,
+  m_fish_Complet,
+  rank = "AIC"
+)
+models_fish
+```
+Le modèle minimisant l'AIC s'avère etre le modèle NB comprenant l'azote et BOD (AIC=-101)
+
+###### Diagnostic du modèle choisi
+
+```{r}
+#| label: diag-NB
+
+library(DHARMa)
+
+# 1. Simulation des résidus
+residus_NB <- simulateResiduals(m_fish_NB, n = 1000)
+
+# 2. Distribution des résidus et résidus selon les valeurs prédites
+plot(residus_NB)
+
+# 3. Tests statistiques
+# Test d'uniformité des résidus
+testUniformity(residus_NB) # p-value = 0.4115
+# Test de dispersion des résidus
+testDispersion(residus_NB) # dispersion = 1.6916, p-value = 0.018
+# Test des valeurs extrêmes (outliers)
+testOutliers(residus_NB)
+
+# 4. Résidus selon les variables explicatives
+# Données conservées lors de l'ajustement du modèle
+data_NB <- model.frame(m_fish_NB)
+# Vérifier le nombre d'observations
+nrow(data_NB)
+length(residus_NB$scaledResiduals)
+plotResiduals(residus_NB, form = data_NB$N_municipal) # pas de déviation significative
+plotResiduals(residus_NB, form = data_NB$BOD_municipal) # écarts locaux mais pas de déviation significative des quantiles 
+plotResiduals(residus_NB, form = data_NB$BOD_industrial) # pas de déviation significative
+plotResiduals(residus_NB, form = data_NB$area) # pas d'hétérogénéité significative de la variance entre les deux zones 
+
+# 5. Multicolinéarité
+check_collinearity(m_fish_NB) # pas de pb de multicolinéarité  
+```
+Le diagnostic du modèle le valide en grande partie bien qu'un point de vigilance soit la dispersion significative. Premièrement, le test d'uniformité indique qu'il n'y a pas de différence statistique entre la distribution des residus simulés et une distribution uniforme théorique (pvalue = 0.4115). La distribution des résidus selon les variables explicatives est également positive ne montrant pas de déviation significative des quantiles bien que des écarts locaux soient observés pour N_municipal. Une seule valeur aberrante est détectée mais celle-ci ne pose a priori pas de problème pour le modèle. Par ailleurs, pas de multicolinéarité importante n'est révélée via le calcul des VIF. Enfin, la surdispersion observée (pvalue = 0.018) est la véritable limite du modèle et nécessite une interprétation prudente des variables significatives du modèle. 
+
+Afin d'appréhender cette surdispersion un modèle construit sans area en effet fixe et year en effet aléatoire à été testé. La dispersion relative au résidus simulés de ce modèle s'est avérée non-significative (Disp = 1.483, pvalue = 0.411). Néanmoins, ce modèle retirant une variable importante susceptible de modifier artificiellement les coefficients des variables nutriments après retrait (area), il a été décidé de conserver le modèle choisi initialement.  
+
+###### Analyse des coefficients du modèle choisi
+
+```{r}
+#| label: mod-fish-NBsum
+summary(m_fish_NB)
+```
+BOD_municipal présente un coefficient de 0.1772 pour une pvalue significative de 0.029. Cet effet à prendre avec prudence au regard de la surdispersion du modèle, suggère que la BOD est positivement corrélée aux captures pour les rejets municipaux. Cependant, cet effet s'inverse concernant les rejets industriels (estimate = -0.146, pvalue = 0.0458), la pvalue reste très proche du seuil de 0.05 pour cet effet. L'effet de l'azote associé aux rejets municipaux ne s'avère pas significatif. Le coefficient positif (estimate = 0.278) suggère néanmoins qu'il y aurait un lien positif entre la biomasse de poissons et la concentration en azote. Enfin, la zone Northen Paijane semble fortement corrélée négativement avec les captures de poissons (estimate = -0.641) bien que cette corrélation ne soit pas significative (pvalue = 0.088). 
 
 
+###### Représentation graphique finale du modèle choisi
+
+```{r}
+# Réprésentation graphique 
+
+# Prédictions pour chaque variable explicative
+pred_N <- ggpredict(m_fish_NB, terms = "N_municipal")
+pred_BOD_m <- ggpredict(m_fish_NB, terms = "BOD_municipal")
+pred_BOD_i <- ggpredict(m_fish_NB, terms = "BOD_industrial")
+
+# Regroupement des prédictions
+predictions <- bind_rows(
+  as.data.frame(pred_N) %>% mutate(variable = "Azote municipal"),
+  as.data.frame(pred_BOD_m) %>% mutate(variable = "BOD municipale"),
+  as.data.frame(pred_BOD_i) %>% mutate(variable = "BOD industrielle")
+)
+
+# Graphique
+ggplot(predictions, aes(x = x, y = predicted)) +
+  geom_ribbon(
+    aes(ymin = conf.low, ymax = conf.high),
+    alpha = 0.2
+  ) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ variable, scales = "free_x") +
+  labs(
+    x = "Concentration du nutriment",
+    y = "Captures de poissons prédites",
+    title = "",
+    subtitle = "",
+    caption = "Prédictions marginales et intervalles de confiance à 95 %"
+  ) +
+  theme_bw()
+```
+
+##### Discussion fish catch
+
+Le modèle conservé pour l'interprétation des effets des nutriments sur les captures de poissons a permis de mettre en évidence plusieurs effets potentiels. Ces effets sont à prendre avec prudence sachant que le modèle présente une surdispersion. Ils concernent uniquement la demande biologique en oxygène (BOD) qui traduit indirectement la quantité de matière organique biodégradable. Celle-ci a d'un côté un effet positif sur la quantité de capture lorsqu'elle provient des rejets municipaux et de l'autre un effet négatif lorsqu'elle provient des rejets industriels. Cette ambivalence dans l'effet de ce facteur pourrait mettre en cause une différence dans la "qualité" de la matière organique selon le type de rejet. L'une pouvant potentiellement favoriser la chaine trophique et donc la croissance des populations de poissons quand l'autre la défavorise.  
 
 
-
-# Partie Poisson
-
-
-
-# Discussion
-
-
-# Conclusion
+# Conclusion génèrale
 
 
 # Annexe
 Cette partie constitue du code réaliser mais non finaliser ou pas explorer complètement. Celui-ci ne sera pas présenter, mais servira d'appuie pour certaines questions ou prespectives présenter lors de la présentation.
+
+::: {.callout-note collapse="true" title="Analyses complémentaires de la richesse phytoplanctonique"}
 
 ## Annexe — Analyses complémentaires de la richesse phytoplanctonique {#sec-annexe-phyto}
 
@@ -3071,9 +3549,9 @@ moyenne.modeles = function(res) {
   sel = which(res$ok & res$dl < 2)
   if (length(sel) < 2) return(NULL)
   w = exp(-res$dl[sel] / 2); w = w / sum(w)
-  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(fixef(m)$cond), "(Intercept)"))))
+  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(glmmTMB::fixef(m)$cond), "(Intercept)"))))
   est = sapply(termes, function(t) sum(w * sapply(res$ms[sel], function(m) {
-    b = fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
+    b = glmmTMB::fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
   data.frame(Terme = termes, `Effet moyen (%)` = round(100 * (exp(est) - 1), 1),
              check.names = FALSE, row.names = NULL)
 }
@@ -3397,7 +3875,7 @@ kable(tab.effets(modele.commun))
 sd.sb = attr(VarCorr(modele.commun)$cond$sub_basin, "stddev")
 ```
 
-Dans ce modèle, l'année domine (+`r round(100 * (exp(fixef(modele.commun)$cond["yr"]) - 1), 0)` % par écart-type) et la DBO a un effet positif. En revanche, l'écart-type de l'effet aléatoire est pratiquement nul (`r format(sd.sb, digits = 2)`), donc une fois les variables prises en compte les sous-bassins ne diffèrent pas entre eux. Ce modèle suppose aussi que le Nord et le Centre réagissent de la même façon, ce que nous testons maintenant.
+Dans ce modèle, l'année domine (+`r round(100 * (exp(glmmTMB::fixef(modele.commun)$cond["yr"]) - 1), 0)` % par écart-type) et la DBO a un effet positif. En revanche, l'écart-type de l'effet aléatoire est pratiquement nul (`r format(sd.sb, digits = 2)`), donc une fois les variables prises en compte les sous-bassins ne diffèrent pas entre eux. Ce modèle suppose aussi que le Nord et le Centre réagissent de la même façon, ce que nous testons maintenant.
 
 #### Pourquoi séparer le Nord et le Centre ?
 
@@ -3710,12 +4188,19 @@ corr.z = function(d, titre) {
 }
 
 corr.z(data.glmm.phyto, "Tous secteurs")
-for (a in secteurs) {
-  corr.z(filter(data.glmm.phyto, area == a), sub(" Paijanne", "", a))
-}
+
+corr.z(
+  filter(data.glmm.phyto, area == secteurs[1]),
+  sub(" Paijanne", "", secteurs[1])
+)
+
+corr.z(
+  filter(data.glmm.phyto, area == secteurs[2]),
+  sub(" Paijanne", "", secteurs[2])
+)
 ```
 
-La DBO suit nettement le temps : `zB` et `yr` sont fortement corrélées négativement, dans tout le lac comme dans chaque secteur ($r \approx -0{,}8$), et c'est la colinéarité la plus gênante pour la suite. Le phosphore est lui aussi lié à la DBO et à l'année, surtout à l'intérieur de chaque secteur ($|r|$ entre 0,7 et 0,8), `zP` baissant avec le temps et avec la DBO. L'azote est lié au phosphore (`zN` et `zP` : $r = 0{,}85$ pour tout le lac) mais pas à l'année (`zN` et `yr` : $r \approx 0$ pour tout le lac). Il apporte donc peu d'information en plus de `zP` et n'explique pas la tendance temporelle, ce qui conforte son retrait des modèles (@fig-correlation-z).
+La DBO suit nettement le temps : `zB` et `yr` sont fortement corrélées négativement, dans tout le lac comme dans chaque secteur ($r \approx -0{,}8$), et c'est la colinéarité la plus gênante pour la suite. Le phosphore est lui aussi lié à la DBO et à l'année, surtout à l'intérieur de chaque secteur ($|r|$ entre 0,7 et 0,8), `zP` baissant avec le temps et avec la DBO. L'azote est lié au phosphore (`zN` et `zP` : $r = 0{,}85$ pour tout le lac) mais pas à l'année (`zN` et `yr` : $r \approx 0$ pour tout le lac). Il apporte donc peu d'information en plus de `zP` et n'explique pas la tendance temporelle, ce qui conforte son retrait des modèles (@ann-fig-correlation-z).
 
 ```{r}
 #| label: tbl-vif-secteur
@@ -3786,9 +4271,9 @@ moyenne.modeles = function(res) {
   sel = which(res$ok & res$dl < 2)
   if (length(sel) < 2) return(NULL)
   w = exp(-res$dl[sel] / 2); w = w / sum(w)
-  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(fixef(m)$cond), "(Intercept)"))))
+  termes = unique(unlist(lapply(res$ms[sel], function(m) setdiff(names(glmmTMB::fixef(m)$cond), "(Intercept)"))))
   est = sapply(termes, function(t) sum(w * sapply(res$ms[sel], function(m) {
-    b = fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
+    b = glmmTMB::fixef(m)$cond[t]; if (is.na(b)) 0 else b })))
   data.frame(Terme = termes, `Effet moyen (%)` = round(100 * (exp(est) - 1), 1),
              check.names = FALSE, row.names = NULL)
 }
@@ -3987,5 +4472,139 @@ Dans les deux secteurs du lac, la richesse du phytoplancton augmente d'année en
 Le Nord et le Centre ne réagissent donc pas de la même façon, ce que confirme le test d'interaction, et c'est ce qui justifie deux modèles. Le GLMM de départ ne servait qu'à justifier ce choix, puisque l'effet du sous-bassin est négligeable, et le modèle final est un GLM par secteur, avec une loi de Poisson au Centre (dispersion inférieure à 1) et une binomiale négative au Nord.
 
 Une limite à garder en tête est que les apports sont mesurés par secteur et par année puis recopiés sur chaque sous-bassin, ce qui fait que les observations d'un même secteur et d'une même année ne sont pas indépendantes pour ces variables. Il serait prudent de vérifier que les conclusions restent les mêmes sur des moyennes par secteur et par année.
+:::
 
+
+::: {.callout-note collapse="true" title="Analyses complémentaires de la capture de poissons"}
+
+## Variables agrégées {#sec-fish-agregees}
+
+### Choix de la loi
+
+Pour voir le choix de la loi, voir : @sec-fish-choix-model (même conclusion pour les variables agrégées : choix d'un GLMM de loi Gamma).
+
+### Hypothèses des modèles
+
+- Ma (`m_add`) : mêmes effets que M1, avec en plus un niveau moyen de captures qui diffère selon l'area, mais des effets identiques d'une area à l'autre (modèle additif).
+- Mb (`m_int`) : l'effet d'au moins une variable (phosphore, azote, BOD ou année) diffère selon l'area (modèle avec interaction).
+- M1 (`m_fish_PA`) : seul le phosphore a un effet sur les captures indépendamment de l'origine du rejet.
+- M2 (`m_fish_BODA`) : seule la BOD a un effet sur les captures indépendamment de l'origine du rejet.
+- M3 (`m_fish_PBA`) : le phosphore et la BOD influencent les captures de façon additive, indépendamment de l'origine du rejet.
+- M4 (`m_fish_CompletA`) : tous les nutriments ont un effet sur les captures indépendamment de l'origine du rejet (phosphore municipal, industriel et autre ; azote municipal ; BOD municipale et industrielle, avec l'année).
+
+### Vérification des différences d'effets entre areas
+
+Modèle sans interaction area :
+
+```{r}
+#| label: mod-add-area
+
+m_add <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year + area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+Modèle avec interaction area :
+
+```{r}
+#| label: mod-int-area
+
+m_int <- glmmTMB(
+  fish_catch ~ (P_total + N_total + BOD_total + year) * area +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-int-area
+
+summary(m_int)
+```
+
+L'effet de la BOD diffère selon l'area : il est significatif pour North.
+
+```{r}
+#| label: tbl-anova-add-int
+#| tbl-cap: "Comparaison des modèles avec et sans interaction area (ANOVA)"
+
+anova(m_add, m_int)
+```
+
+L'effet d'au moins une variable explicative varie significativement selon l'area (p = 0,029).
+
+```{r}
+#| label: tbl-aic-add-int
+#| tbl-cap: "Comparaison AIC des modèles avec et sans interaction area"
+
+AIC(m_add, m_int)
+```
+
+Le modèle avec interaction est meilleur selon l'AIC (AIC = -102 contre -105).
+
+### Création des modèles
+
+**Modèle P**
+
+```{r}
+#| label: mod-fish-pA
+
+m_fish_PA <- glmmTMB(
+  fish_catch ~ P_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle BOD**
+
+```{r}
+#| label: mod-fish-bodA
+
+m_fish_BODA <- glmmTMB(
+  fish_catch ~ BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle phosphore et BOD**
+
+```{r}
+#| label: mod-fish-PBA
+
+m_fish_PBA <- glmmTMB(
+  fish_catch ~ P_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+**Modèle complet**
+
+```{r}
+#| label: mod-fish-completA
+
+m_fish_CompletA <- glmmTMB(
+  fish_catch ~ P_total + N_total + BOD_total + year +
+    (1 | sub_basin),
+  family = Gamma(link = "log"),
+  data = data.analyse.fish.GLMM
+)
+```
+
+```{r}
+#| label: sum-fish-complet
+
+summary(m_fish_CompletA)
+```
+
+:::
 
