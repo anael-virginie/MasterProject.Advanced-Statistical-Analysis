@@ -1047,6 +1047,20 @@ data.analyse.fish <- data.analyse %>%
 #PHYTO
 
 # FISH
+{
+  data.nutriment.cor <- data.nutriment
+  stopifnot(!anyDuplicated(data.nutriment[c("year", "area")]))
+  
+  data.analyse.GLMM <- data.biotic %>%
+    left_join(
+      data.nutriment.cor,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    )
+  
+  stopifnot(nrow(data.analyse.GLMM) == nrow(data.biotic))
+  rm(data.nutriment.cor)
+}
 data.analyse.fish.GLMM <- data.analyse.GLMM %>%
 # 1. Création des variables agrégées
 mutate(
