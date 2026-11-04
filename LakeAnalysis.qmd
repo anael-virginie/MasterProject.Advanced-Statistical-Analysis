@@ -1248,7 +1248,7 @@ $$
 ```{r}
 #| label: mod-fish-p
 
-m_fish_N <- glmmTMB(
+m_fish_P <- glmmTMB(
   fish_catch ~ P_municipal + P_industrial + P_other + area + (1 | sub_basin) + (1 | year),
   family = Gamma(link = "log"),
   data = data.analyse.fish.GLMM
@@ -1308,7 +1308,7 @@ $$
 
 m_fish_PN <- glmmTMB(
   fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + area +
-    (1 | sub_basin) (1 | year),
+    (1 | sub_basin) + (1 | year),
   family = Gamma(link = "log"),
   data = data.analyse.fish.GLMM
 )
@@ -1339,11 +1339,11 @@ Comparaison AIC
 
 models_fish <- MuMIn::model.sel(
   m_fish_P,
-  m_fish_N
+  m_fish_N,
   m_fish_BOD,
-  m_fish_PB
-  m_fish_NB
-  m_fish_PN
+  m_fish_PB,
+  m_fish_NB,
+  m_fish_PN,
   m_fish_Complet,
   rank = "AIC"
 )
