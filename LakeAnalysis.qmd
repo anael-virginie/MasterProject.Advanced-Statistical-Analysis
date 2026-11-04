@@ -1232,8 +1232,7 @@ attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci rest
 ###### Définition des modèles
 
 Modèle N (M1): $$
-\text{fish\_catch} \sim N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 ```{r}
 #| label: mod-fish-N
 
@@ -1246,8 +1245,7 @@ m_fish_N <- glmmTMB(
 ``` 
 
 Modèle P (M2): $$
-\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 
 ```{r}
 #| label: mod-fish-p
@@ -1260,8 +1258,7 @@ m_fish_P <- glmmTMB(
 ``` 
 
 Modèle BOD (M3): $$
-\text{fish\_catch} \sim BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 
 ```{r}
 #| label: mod-fish-bod
@@ -1275,8 +1272,7 @@ m_fish_BOD <- glmmTMB(
 ```
 
 Modèle PB (M4): $$
-\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 
 ```{r}
 #| label: mod-fish-PB
@@ -1290,8 +1286,7 @@ m_fish_PB <- glmmTMB(
 ``` 
 
 Modèle NB (M5): $$
-\text{fish\_catch} \sim N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 
 ```{r}
 #| label: mod-fish-NB
@@ -1304,8 +1299,7 @@ m_fish_NB <- glmmTMB(
 ``` 
 
 Modèle PN (M6): $$
-\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 
 ```{r}
 #| label: mod-fish-PN
@@ -1319,8 +1313,7 @@ m_fish_PN <- glmmTMB(
 ``` 
 
 Modèle complet (M7): $$
-\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})
-$$
+\text{fish\_catch} \sim P_{\text{municipal}} + P_{\text{industrial}} + P_{\text{other}} + N_{\text{municipal}} + BOD_{\text{municipal}} + BOD_{\text{industrial}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
 
 ```{r}
 #| label: mod-fish-complet
