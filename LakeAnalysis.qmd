@@ -1183,8 +1183,8 @@ Nous comparons donc ce modèle à un LME selon une distribution Gaussienne.
 
 # Modèle 
 m_lme_fish <- lmer(
-  fish_catch ~ P_total + N_total + BOD_total + area +
-    (1 | sub_basin) + (1 | year),
+  fish_catch ~ P_municipal + P_industrial + P_other + N_municipal + BOD_municipal + BOD_industrial + area + 
+  (1 | sub_basin) + (1|year),
   data = data.analyse.fish.GLMM,
   REML = FALSE
 )
