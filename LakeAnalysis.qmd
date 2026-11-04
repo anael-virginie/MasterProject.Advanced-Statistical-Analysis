@@ -33,6 +33,9 @@ library(missMDA)
 library(Hmisc)
 library(MuMIn)
 library(lme4)
+library(ggeffects)
+library(ggplot2)
+library(dplyr)
 knitr::opts_chunk$set(fig.align = "center", fig.width = 9, fig.height = 5)
 theme_set(theme_minimal(base_size = 12))
 
@@ -1400,10 +1403,6 @@ BOD_municipal présente un coefficient de 0.1772 pour une pvalue significative d
 
 ```{r}
 # Réprésentation graphique 
-install.packages('ggeffects')
-library(ggeffects)
-library(ggplot2)
-library(dplyr)
 
 # Prédictions pour chaque variable explicative
 pred_N <- ggpredict(m_fish_NB, terms = "N_municipal")
