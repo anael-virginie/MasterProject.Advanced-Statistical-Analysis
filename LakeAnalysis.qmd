@@ -4,19 +4,22 @@ author: "GOURBILLON Candys, DELANNOY Mathéo, LENQUETTE Anael, LAPORTE Paul"
 lang: fr
 number-sections: true
 number-depth: 6
-keep-md: false
-keep-ipynb: false
 format:
   html:
     embed-resources: true
-html-math-method: katex
-toc: true
-toc-location: left
+    html-math-method: katex
+    toc: true
+    toc-location: left
+keep-md: true
+keep-ipynb: false
+execute:
+  cache: true
 editor:
   markdown:
     canonical: false
     wrap: 72
 ---
+
 # Introduction
 
 L'eutrophisation des milieux aquatiques constitue une problématique majeure notamment dans l'écosystème des lacs. Les apports excessifs en nutriments, tels que le phosphore et l'azote, ainsi que les charges de pollution organique mesurées par la demande biologique en oxygène (DBO), peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplancton et affecter les communautés de poissons.
@@ -31,6 +34,8 @@ Pour répondre à ces questions, nous analysons l'évolution spatiale et tempore
 
 L'analyse est réalisée en plusieurs étapes. Nous commençons par une exploration descriptive des données afin d'examiner leur structure, leurs distributions et les éventuelles valeurs manquantes. Nous étudions ensuite les relations entre les variables environnementales et biologiques, ainsi que les corrélations entre les différents nutriments. Enfin, des approches multivariées et des modèles statistiques seront utilisés pour identifier les facteurs les plus fortement associés aux variations observées des communautés biologiques.
 
+# Graphical Abstract
+{{< include GraphicalAbstract.html >}}
 
 ```{r initialisation}
 #| include: false
@@ -1865,7 +1870,7 @@ Les variables explicatives sont centrées-réduites : $z = (x - \bar{x}) / s$, o
 L'année et le sous-bassin sont introduits comme effets aléatoires, `(1 | annee)` et `(1 | sub_basin)`. Chaque année et chaque sous-bassin possèdent ainsi une richesse moyenne propre, tirée dans une loi normale commune, ce qui prend en compte la non-indépendance des mesures répétées dans le temps et dans un même sous-bassin. Les modèles sont donc des GLMM.
 
 ```{r}
-#| label: preparation-glmm-phyto
+#| label: preparation-glmm-phyto-1
 #| echo: false
 #| message: false
 #| warning: false
@@ -1981,10 +1986,10 @@ disp_poisson <- check_overdispersion(M7.phy.poisson)$dispersion_ratio
 disp_nbiom2  <- check_overdispersion(M7.phy.nbiom2)$dispersion_ratio
 ```
 
-La dispersion de Poisson est de `r round(disp_poisson, 2)` (@tbl-choix-loi), ce qui la place dans la zone grise, et les AIC sont proches. Poisson serait donc défendable. Nous gardons quand même la binomiale négative, plus prudente et utilisée par Tolonen et al. (2014) pour la richesse du phytoplancton. Sa dispersion (`r round(disp_nbiom2, 2)`; @tbl-choix-loi) sert seulement de vérification, elle revient près de 1, donc la surdispersion est bien absorbée.
+La dispersion de Poisson est de `r round(disp_poisson, 2)` (@tbl-choix-loi-1), ce qui la place dans la zone grise, et les AIC sont proches. Poisson serait donc défendable. Nous gardons quand même la binomiale négative, plus prudente et utilisée par Tolonen et al. (2014) pour la richesse du phytoplancton. Sa dispersion (`r round(disp_nbiom2, 2)`; @tbl-choix-loi-1) sert seulement de vérification, elle revient près de 1, donc la surdispersion est bien absorbée.
 
 ```{r}
-#| label: tbl-choix-loi
+#| label: tbl-choix-loi-1
 #| tbl-cap: "Comparaison des lois sur le modèle commun"
 #| echo: false
 #| message: false
@@ -2008,7 +2013,7 @@ L'analyse exploratoire et l'ACP ont mis en évidence des différences environnem
 Afin d'examiner cette hypothèse, nous comparons deux GLMM : un modèle avec des effets communs des nutriments aux deux secteurs (area + apports) et un modèle incluant des interactions entre le secteur et chacun des six apports (area * apports). La comparaison repose sur le critère d'information d'Akaike (AIC) et sur un test du rapport de vraisemblance..
 
 ```{r}
-#| label: tbl-test-secteur
+#| label: tbl-test-secteur-1
 #| tbl-cap: "Comparaison des modèles avec et sans interaction entre secteur et apports"
 #| echo: false
 #| message: false
@@ -2092,7 +2097,7 @@ Nous définissons ensuite huit modèles (M0 à M7), correspondant aux différent
 
 M1 <- glmmTMB(
   phyto_richness ~ N_municipal +
-    (1 | year) + (1 | sub_basin),
+    area + (1 | year) + (1 | sub_basin),
   data = data.analyse.phy.GLMM,
   family = poisson
 )
@@ -2537,7 +2542,7 @@ Il est également important de rappeler que le phosphore industriel est corrél�
 Quatre modèles présentent un ΔAIC inférieur à 2 (M3, M4, M5 et M7). Plutôt que d'en retenir un seul, il est possible de calculer la moyenne de leurs coefficients, pondérée par les poids d'Akaike, ce qui intègre l'incertitude liée au choix du modèle. Lorsqu'une variable est absente d'un modèle, son coefficient est fixé à 0 dans ce modèle.
 
 ```{r}
-#| label: tbl-moyenne-modeles
+#| label: tbl-moyenne-modeles-1
 #| tbl-cap: "Effets moyens (en % pour +1 écart-type) sur les modèles à ΔAIC < 2"
 #| echo: false
 #| message: false
@@ -2954,7 +2959,7 @@ Dans cette partie, nous additionnons les sources : le phosphore total (`P_total`
 - M5 : les effets du phosphore et de la DBO dépendent de l'année.
 
 #### Choix de la loi
-La loi a été choisie dans la partie commune, à partir du modèle avec les totaux (@tbl-choix-loi et @ann-tbl-loi-secteur) : une loi de Poisson au Centre, où la dispersion est inférieure à 1, et une binomiale négative au Nord, où elle est dans la zone grise. Nous gardons ce choix pour tous les modèles de la partie B.
+La loi a été choisie dans la partie commune, à partir du modèle avec les totaux (@tbl-choix-loi-2 et @ann-tbl-loi-secteur) : une loi de Poisson au Centre, où la dispersion est inférieure à 1, et une binomiale négative au Nord, où elle est dans la zone grise. Nous gardons ce choix pour tous les modèles de la partie B.
 
 #### Colinéarité (VIF)
 Nous regardons les corrélations entre les totaux (`zP`, `zB`, `zN`) et l'année (`yr`), pour l'ensemble du lac puis dans chaque secteur. L'azote n'est pas dans les modèles, nous le montrons ici pour justifier ce choix. Comme il a des valeurs manquantes, la corrélation est calculée sur les paires complètes. Nous utilisons la corrélation de Pearson, qui mesure la colinéarité linéaire des variables telles qu'elles entrent dans les modèles, et la corrélation de Spearman de la section @sec-correlation donne des valeurs voisines.
@@ -3285,7 +3290,7 @@ vars.sans.N = setdiff(variables.nutriments, grep("^N_", variables.nutriments, va
 ```
 
 ```{r}
-#| label: preparation-glmm-phyto
+#| label: preparation-glmm-phyto-2
 #| echo: false
 #| message: false
 #| warning: false
@@ -3344,7 +3349,7 @@ La richesse est un nombre de taxons, donc une variable quantitative discrète. O
 Le principe, Poisson puis binomiale négative en cas de surdispersion, est présenté dans le cours (diapositive « Poisson model and overdispersion »). Les seuils chiffrés sont des repères usuels (par exemple Zuur et al. 2009) et ne viennent pas du cours. Tolonen et al. (2014) font de la même façon, avec une binomiale négative pour la richesse du phytoplancton, dont la variance dépasse nettement la moyenne, et une loi de Poisson pour celle du zooplancton, dont la dispersion est de 1,1.
 
 ```{r}
-#| label: tbl-choix-loi
+#| label: tbl-choix-loi-2
 #| tbl-cap: "Comparaison des lois sur le modèle commun"
 #| echo: false
 #| message: false
@@ -3396,7 +3401,7 @@ Dans ce modèle, l'année domine (+`r round(100 * (exp(fixef(modele.commun)$cond
 Nous comparons un modèle où les effets sont les mêmes dans les deux secteurs (`area + variables`) à un modèle où chaque variable a un effet propre à chaque secteur (`area * variables`).
 
 ```{r}
-#| label: tbl-test-secteur
+#| label: tbl-test-secteur-2
 #| tbl-cap: "Test de l'interaction entre le secteur et les variables (test du rapport de vraisemblance)"
 #| echo: false
 #| message: false
@@ -3666,7 +3671,7 @@ Dans cette partie, nous additionnons les sources : le phosphore total (`P_total`
 
 #### Choix de la loi
 
-La loi a été choisie dans la partie commune, à partir du modèle avec les totaux (@tbl-choix-loi et @tbl-loi-secteur) : une loi de Poisson au Centre, où la dispersion est inférieure à 1, et une binomiale négative au Nord, où elle est dans la zone grise. Nous gardons ce choix pour tous les modèles de la partie B.
+La loi a été choisie dans la partie commune, à partir du modèle avec les totaux (@tbl-choix-loi-2 et @tbl-loi-secteur) : une loi de Poisson au Centre, où la dispersion est inférieure à 1, et une binomiale négative au Nord, où elle est dans la zone grise. Nous gardons ce choix pour tous les modèles de la partie B.
 
 #### Colinéarité (VIF)
 
@@ -3792,7 +3797,7 @@ Au Centre, les modèles qui contiennent la DBO (M2 à M5) sont pratiquement équ
 Quand plusieurs modèles ont un ΔAIC inférieur à 2, on peut faire une moyenne de modèles pondérée par les poids d'Akaike. Nous la faisons sur les modèles M0 à M5, qui utilisent les mêmes variables. Au Centre, ces modèles contiennent tous l'année et la DBO et ne diffèrent que par le phosphore et les interactions, dont les effets moyens sont faibles.
 
 ```{r}
-#| label: tbl-moyenne-modeles
+#| label: tbl-moyenne-modeles-2
 #| results: asis
 #| echo: false
 
