@@ -22,7 +22,7 @@ editor:
 
 # Introduction
 
-L'eutrophisation des milieux aquatiques constitue une problématique majeure notamment dans l'écosystème des lacs. Les apports excessifs en nutriments, tels que le phosphore et l'azote, ainsi que les charges de pollution organique mesurées par la demande biologique en oxygène (DBO), peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplancton et affecter les communautés de poissons.
+L'eutrophisation des milieux aquatiques constitue une problématique majeure notamment dans l'écosystème des lacs. Les apports excessifs en nutriments, tels que le phosphore et l'azote, ainsi que les charges de pollutions organiques mesurées par la demande biologique en oxygène (DBO), peuvent modifier le fonctionnement des réseaux trophiques, favoriser certaines espèces de phytoplanctons et affecter les communautés de poissons.
 
 Afin de mieux comprendre ces relations, un suivi à long terme a été réalisé sur le lac Päijänne (Finlande). Ce suivi comprend des mesures annuelles d'apports en en phosphore (sources municipale, industrielle et autres), en azote (sources municipale, industrielle et autres), ainsi que de demande biologique en oxygène (municipale et industrielle). Des indicateurs biologiques ont également été relevés dans plusieurs sous-bassins répartis au sein de différentes zones géographiques du lac.
 
@@ -30,11 +30,11 @@ Parmi les variables biologiques disponibles, trois indicateurs étaient initiale
 
 L'objectif de cette étude est d'identifier les facteurs environnementaux susceptibles d'influencer ces deux indicateurs biologiques. Plus précisément, nous chercherons à savoir, quels sont les facteurs influençant la richesse phytoplanctonique et les captures de poissons dans un lac boréal ?
   
-Pour répondre à ces questions, nous analysons l'évolution spatiale et temporelle des variables environnementales ainsi que leurs relations avec les réponses biologiques observées.
+Pour répondre à cette question, nous analysons l'évolution spatiale et temporelle des variables environnementales ainsi que leurs relations avec les réponses biologiques observées.
 
 L'analyse est réalisée en plusieurs étapes. Nous commençons par une exploration descriptive des données afin d'examiner leur structure, leurs distributions et les éventuelles valeurs manquantes. Nous étudions ensuite les relations entre les variables environnementales et biologiques, ainsi que les corrélations entre les différents nutriments. Enfin, des approches multivariées et des modèles statistiques seront utilisés pour identifier les facteurs les plus fortement associés aux variations observées des communautés biologiques.
 
-# Graphical Abstract
+# Arbre de décision
 <img src="GraphicalAbstract.svg" style="filter: none !important;" width="100%" />
 
 ```{r initialisation}
@@ -146,15 +146,15 @@ data.biotic <- data.biotic %>%
          sub_basin = as.factor(sub_basin))
 ```
 
-Comme montré dans @tbl-glimpse-data, nous avons donc deux data sets.
+Comme montré dans @tbl-glimpse-data, nous avons donc deux parties dans notre jeu de données.
 
 `data.nutriment` comporte :
 
 - `year` : année d'observation.
 - `area` : zone du lac.
 - `P_municipal`, `P_industrial`, `P_other` : apports de phosphore par source (kg P/jour).
-- `N_municipal`, `N_industrial`, `N_other` : apports d'azote par source (t N/jour).
-- `BOD_municipal`, `BOD_industrial` : charge associée à la demande biologique en oxygène (t O₂/jour).
+- `N_municipal`, `N_industrial`, `N_other` : apports d'azote par source (T N/jour).
+- `BOD_municipal`, `BOD_industrial` : charge associée à la demande biologique en oxygène (T O₂/jour).
 
 `data.biotic` comporte :
 
@@ -190,7 +190,7 @@ bind_rows(
 ```
 
 ## Dimensions et structure
-Nos deux jeux de donnees ont une dimension distincte: `data.nutriments` ayant 96 et biotique 117, avec des dates échantillons allande de 1960 à 2011, et pour biotic de 1975 a 2011 @tbl-kable-recap-glimpse.
+Les deux jeux de données présentent des tailles différentes, `data.nutriments` contient 96 échantillons couvrant la période 1960-2011, tandis que biotique contient 117 échantillons couvrant la période 1975-2011. @tbl-kable-recap-glimpse.
 
 ```{r}
 #| label: tbl-kable-recap-glimpse
@@ -213,7 +213,7 @@ bind_rows(
 # Analyse exploratoire des données
 
 ## Statistiques descriptives {#sec-stats-dscrip-general}
-Des staitstiques descriptives de nos tableaux @tbl-stats-nutri @tbl-stats-biotic. Nous pouvons déjà observer uen différence d'informations disponibles ayant des données manquantes pour `fish_catch` et tout les données concernant l'azote.
+Les statistiques descriptives des deux jeux de données sont présentées dans les @tbl-stats-nutri et @tbl-stats-biotic. Une première différence apparaît dans la disponibilité des données, plusieurs valeurs sont manquantes pour `fish_catch`, ainsi que pour l'ensemble des variables relatives à l'azote.
 
 ```{r}
 #| label: tbl-stats-biotic
@@ -397,7 +397,7 @@ Nous avons examiné la distribution des huit variables explicatives quantitative
 
 À partir de ces graphiques (@fig-distribution-nutriments), nous pouvons déjà remarquer la présence de valeurs extrêmes pour certaines variables, notamment `r paste(resume.extremes$variable[resume.extremes$n_extremes > 0], collapse = ", ")`. Nous observons également une diversité de distributions, dont la majorité semble s'écarter d'une distribution normale.
 
-En examinant l'évolution temporelle de ces valeurs selon les différents zones géographiques (`area`), nous constatons que certaines correspondent aux premières mesures disponibles, tandis que d'autres se répètent au cours du temps (@fig-extremes-nutriments). Ces observations ne semblent donc pas nécessairement aberrantes. En l'absence d'erreurs de mesure identifiées, nous avons décidé de les conserver pour la suite des analyses.
+En examinant l'évolution temporelle de ces valeurs selon les différentes zones géographiques (`area`), nous constatons que certaines correspondent aux premières mesures disponibles, tandis que d'autres se répètent au cours du temps (@fig-extremes-nutriments). Ces observations ne semblent donc pas nécessairement aberrantes. En l'absence d'erreurs de mesure identifiées, nous avons décidé de les conserver pour la suite des analyses.
 
 ```{r}
 #| label: fig-distribution-nutriments
@@ -459,8 +459,8 @@ data.nutriment %>%
 ### Analyser la relation potentielle entre Y et les X
 Afin d'identifier les facteurs susceptibles d'influencer la richesse phytoplanctonique et les captures de poissons, nous examinons leurs relations avec les variables géographiques (`area`, `sub_basin`) et les apports en nutriments. Cette analyse exploratoire permet de mettre en évidence d'éventuelles associations et différences spatiales, sans présumer de leur significativité statistique.
 
-#### Variable explicative
-##### variabilité spatiale
+#### Variables explicatives
+##### Variabilité spatiale
 Nous examinons d'abord la variabilité des réponses biologiques selon les zones géographiques (`area`) et les sous-bassins (`sub_basin`). Cette étape permet de déterminer si certaines zones présentent des valeurs généralement plus élevées ou plus faibles que d'autres.
 
 Ces différences spatiales sont importantes à prendre en compte, car elles pourraient influencer les relations observées entre les apports en nutriments et les réponses biologiques. Elles permettent également d'orienter le choix des effets fixes et aléatoires dans les futurs modèles mixtes.
@@ -502,12 +502,12 @@ for (variable in c("sub_basin", "area")) {
 }
 ```
 
-##### variabilité temporelle
+##### Variabilité temporelle
 Nous étudions l'évolution temporelle de la richesse phytoplanctonique et des captures de poissons (@fig-reponses-temporelles) afin d'identifier d'éventuelles tendances pouvant influencer les relations entre les apports en nutriments et les réponses biologiques.
 
 Nous observons une tendance générale à l'augmentation de la richesse phytoplanctonique au cours du temps, malgré des fluctuations entre les sous-bassins. En revanche, l'évolution des captures de poissons est moins évidente, avec des fluctuations importantes et plusieurs périodes sans données disponibles, ne permettant pas de dégager une tendance générale claire.
 
-Ces observation pourrait indiquer une importance de prendre en compte la dimension temporelle, mais n'établissent pas d'affirmer une relation entre les apports en nutriments et les réponses biologiques, d'autres facteurs environnementaux pouvant également intervenir.
+Ces observations pourraient indiquer l'importance de prendre en compte la dimension temporelle, mais ne permettent pas d'affirmer une relation entre les apports en nutriments et les réponses biologiques, d'autres facteurs environnementaux pouvant également intervenir.
 
 ```{r}
 #| label: fig-reponses-temporelles
@@ -562,9 +562,9 @@ data.spatial %>%
   theme_minimal()
 ```
 
-#### Variable explicatives
+#### Variables explicatives
 ##### Variabilité spatiale
-A simple vue nous pouvons dire qu'il a des différences entre les deux zones géographiques (@fig-nutriments-spatiales-new), particulièrement pour `P_other`, `N_other` et `N_municipal`, dont les valeurs sont généralement plus élevées dans *Northen Paijanne*. Les apports de `P_municipal` et `P_industrial` y présentent également une dispersion plus importante. En revanche, les distributions de `BOD_industrial` et `BOD_municipal` se chevauchent davantage entre les deux zones. Ces observations restent descriptives et devront être confirmées par des analyses statistiques..^[Par exemple, un test de Wilcoxon pour données appariées, comparant les deux zones pour les mêmes années, sous réserve de l'indépendance des différences entre années. En présence d'autocorrélation temporelle, une méthode tenant compte de cette dépendance serait nécessaire.]
+A simple vue nous pouvons dire qu'il y a des différences entre les deux zones géographiques (@fig-nutriments-spatiales-new), particulièrement pour `P_other`, `N_other` et `N_municipal`, dont les valeurs sont généralement plus élevées dans *Northen Paijanne*. Les apports de `P_municipal` et `P_industrial` y présentent également une dispersion plus importante. En revanche, les distributions de `BOD_industrial` et `BOD_municipal` se chevauchent davantage entre les deux zones. Ces observations restent descriptives et devront être confirmées par des analyses statistiques.^[Par exemple, un test de Wilcoxon pour données appariées, comparant les deux zones pour les mêmes années, sous réserve de l'indépendance des différences entre années. En présence d'autocorrélation temporelle, une méthode tenant compte de cette dépendance serait nécessaire.]
 
 ```{r}
 #| label: fig-nutriments-spatiales-new
@@ -634,7 +634,7 @@ data.nutriment %>%
   theme_minimal()
 ```
 
-#### Variables réponses et variable explicatives
+#### Variables réponses et variables explicatives
 Nous examinons ensuite les relations entre les deux variables réponses et les huit variables explicatives.
 
 L'objectif est de repérer d'éventuelles associations positives, négatives ou non linéaires entre les apports et les indicateurs biologiques.
@@ -644,13 +644,13 @@ Les observations sont distinguées selon `area` afin de vérifier si les relatio
 ##### Variabilité géographique
 La @fig-relations-nutriments-area suggère que les relations entre les apports en nutriments et les réponses biologiques varient selon les zones géographiques.
 
-Nous observons que: 
+Nous observons que : 
 
 * Captures de poissons (`fish_catch`) : les associations apparaissent moins marquées et plus hétérogènes, avec des différences de tendance entre les zones.
-* Richesse phytoplanctonique (`phyto_richness`) : des tendances généralement négatives sont observées nottament avec le phosphate mais aussi BOD (`P_municipal`, `P_industrial`, `BOD_municipal` et `BOD_industrial`).
+* Richesse phytoplanctonique (`phyto_richness`) : des tendances généralement négatives sont observées notamment avec le phosphate mais aussi BOD (`P_municipal`, `P_industrial`, `BOD_municipal` et `BOD_industrial`).
 * Différences géographiques : certaines relations semblent varier selon la zone, notamment pour `N_municipal`, dont les tendances présentent des directions opposées entre Central Paijanne et Northen Paijanne.
 
-Cependant,  pourraient être influencées par des valeurs extrêmes ou par l'évolution temporelle des variables. Cela reste descriptive.
+Cependant, ces relations pourraient être influencées par des valeurs extrêmes ou par l'évolution temporelle des variables. Cela reste descriptif.
 
 ```{r}
 #| label: fig-relations-nutriments-area
@@ -694,7 +694,7 @@ rm(data.analyse.relations)
 ##### Variabilité temporelle
 Afin de compléter l'analyse des relations entre les variables réponses et explicatives, nous examinons leur évolution temporelle conjointe selon les deux zones géographiques (@fig-relations-temporelles-nutriments). Les valeurs sont standardisées afin de rendre comparables les tendances des indicateurs biologiques et des apports environnementaux, malgré leurs unités différentes.
 
-Cette analyse a simple vue ne révèle pas de relation générale clairement identifiable (@fig-relations-temporelles-nutriments) . Certaines concordances ponctuelles peuvent être observées, notamment entre les apports associés à la `BOD` et les `fish_catch`, ainsi qu'entre `N_other` et la `phyto_richness.` Toutefois, ces rapprochements visuels ne sont ni systématiques ni suffisamment nets pour suggérer une association robuste. Une analyse statistique tenant compte des dimensions spatiale et temporelle sera donc nécessaire pour évaluer ces relations.
+Cette analyse à simple vue ne révèle pas de relation générale clairement identifiable (@fig-relations-temporelles-nutriments). Certaines concordances ponctuelles peuvent être observées, notamment entre les apports associés à la `BOD` et les `fish_catch`, ainsi qu'entre `N_other` et la `phyto_richness.` Toutefois, ces rapprochements visuels ne sont ni systématiques ni suffisamment nets pour suggérer une association robuste. Une analyse statistique tenant compte des dimensions spatiale et temporelle sera donc nécessaire pour évaluer ces relations.
 
 ```{r}
 #| label: fig-relations-temporelles-nutriments
@@ -782,17 +782,17 @@ data.biotic %>%
 ```
 
 ## Valeurs manquantes
-Au début de la visualisation de notre jeu de données nous avons pu remarquer qu'il y en avait des valeurs manquantes (@sec-stats-dscrip-general). Ce fait est important, car ces valeurs manquantes pourrait avoir un impacte sur notre analyse de données et limiter la représentativité des analyses.
+Au début de la visualisation de notre jeu de données, nous avons pu remarquer qu'il y avait des valeurs manquantes (@sec-stats-dscrip-general). Ce fait est important, car ces valeurs manquantes pourraient avoir un impact sur notre analyse de données et limiter la représentativité des analyses.
 
 Une suppression systématique des observations incomplètes pourrait entraîner une perte importante d'informations. Nous chercherons donc à conserver le maximum d'observations disponibles, en adaptant le traitement des valeurs manquantes aux variables utilisées dans chaque analyse.
 
 ### Quantification des valeurs manquantes
-#### Variable explicarive
+#### Variable explicative
 Dans un premier temps, nous calculons le nombre et le pourcentage de valeurs manquantes pour chaque variable @tbl-valeurs-manquantes. Les proportions de valeurs manquantes sont également représentées graphiquement afin d'identifier les variables les plus concernées @fig-valeurs-manquantes.
 
-Noius pouvons voir que de nos variables explicatives les variabels les plus concernés sont `N_other` `N_municipal` et `N_industrial`.
+Nous pouvons voir que de nos variables explicatives les variables les plus concernées sont `N_other`, `N_municipal` et `N_industrial`.
 
-En cas de concerver ces variables après analyse de corrélation, des méthodes d'imputations existent comme celles proposées dans le package `missMDA` (Josse & Husson, 2016).
+Si nous conservons ces variables après analyse de corrélation, des méthodes d'imputation existent, comme celles proposées dans le package `missMDA` (Josse & Husson, 2016).
 
 
 ```{r}
@@ -866,12 +866,12 @@ manquantes.area <- data.biotic %>%
 Concernant nos variables réponses, nous observons que `fish_catch` présente `r resume.fish$n` valeurs manquantes, soit `r resume.fish$pct`% des observations (@tbl-valeurs-manquantes-biotic). 
 
 
-À l'échelle des zones géographiques (`area`), les valeurs manquantes représentent `r paste0(manquantes.area$pct, " % des observations de ", manquantes.area$area, collapse = " et ")` (@fig-manquantes-temps-biotic). Répartition relativement similaire entre les deux. 
-À l'échelle des sous-basin cela correspond a : `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-manquantes-temps-biotic).
+À l'échelle des zones géographiques (`area`), les valeurs manquantes représentent `r paste0(manquantes.area$pct, " % des observations de ", manquantes.area$area, collapse = " et ")` (@fig-manquantes-temps-biotic). La répartition est relativement similaire entre les deux. 
+À l'échelle des sous-bassins cela correspond à : `r paste0(manquantes.bassin$sub_basin, " (", manquantes.bassin$n, " observations, soit ", manquantes.bassin$pct, " %)", collapse = ", ")` (@fig-manquantes-temps-biotic).
  
 Compte tenu de ces résultats, il pourrait être intéressant de privilégier une analyse des captures de poissons à l'échelle des zones géographiques (`area`). Cela permettrait de simplifier les comparaisons spatiales, sans toutefois résoudre le problème des valeurs manquantes. 
 
-Pour affronter cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`. 
+Pour faire face à cette limite, des méthodes d'imputation existent, notamment celles proposées dans le package `missMDA` (Josse & Husson, 2016). Cependant, la proportion importante de valeurs manquantes et leur répartition inégale entre les sous-bassins rendent leur estimation délicate, particulièrement en tenant compte de la structure spatiale et temporelle de nos données. Nous privilégierons donc une analyse des observations disponibles, sans procéder à une imputation automatique. Cette décision implique néanmoins une perte d'informations et nécessite une interprétation prudente des résultats concernant `fish_catch`. 
 
 
 ```{r}
@@ -973,9 +973,9 @@ data.biotic %>%
 ```
 
 ## Vérification d'éventuelle colinéarité entre les variables réponses {#sec-correlation}
-Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problémes de multicolinéarité.] 
+Avant la modélisation, nous examinons les relations entre les huit variables quantitatives correspondant aux apports en nutriments.^[Cette étape est importante pour éviter des problèmes de multicolinéarité.] 
 
-Pour faire cela, nous devons d'abord vérifier que nos variables concernant les nutriments suivent la loi normale (@tbl-shapirotest-calc). Du fait qu'elles ne la suivent pas, le test de corrélation sera effectué avec un test non-paramètrique: celui de Spearman.
+Pour faire cela, nous devons d'abord vérifier que nos variables concernant les nutriments suivent une loi normale (@tbl-shapirotest-calc). Du fait qu'elles ne la suivent pas, le test de corrélation sera effectué avec un test non paramètrique : celui de Spearman.
 ```{r}
 #| label: tbl-shapirotest-calc
 #| echo: false
@@ -1010,7 +1010,7 @@ resultat.correlation <- Hmisc::rcorr(
               select(all_of(variables.nutriments))),type = "spearman")
 ```
 
-Pour cela nous examinons le coefficients de corrélation de Spearman (@fig-correlation-nutriments), retenons un seuil de *|r|>0,6* et *p<0,05* pour identifier les corréaltions fortes susceptibles. Cet analyse met en évidence plusieurs associations significatives entre les divers apports:
+Pour cela nous examinons le coefficient de corrélation de Spearman (@fig-correlation-nutriments), retenant un seuil de *|r|>0,6* et *p<0,05* pour identifier les corrélations fortes susceptibles d'indiquer une corrélation. Cette analyse met en évidence plusieurs associations significatives entre les divers apports:
 ```{r}
 #| echo: false
 #| results: asis
@@ -1036,7 +1036,7 @@ apply(
 )
 ```
 
-En prenant en compte ces associations et de la proportion de valeurs manquantes dans les variables relatives à l'azote (17,7 % chacune), nous choisissons d'exclure `N_industrial` (représenter par `P_industrial`) et `N_other` (representer par `P_other`) des modèles principaux afin de limiter la perte d'observations.
+En prenant en compte ces associations et de la proportion de valeurs manquantes dans les variables relatives à l'azote (17,7 % chacune), nous choisissons d'exclure `N_industrial` (représentée par `P_industrial`) et `N_other` (representée par `P_other`) des modèles principaux afin de limiter la perte d'observations.
 
 Cependant, plusieurs corrélations dépassant le seuil retenu persistent entre les variables conservées : `P_municipal` et `P_industrial`, `P_municipal` et `BOD_municipal`, `P_industrial` et `BOD_municipal`, ainsi que `BOD_municipal` et `BOD_industrial`.
 
@@ -1044,7 +1044,7 @@ Nous choisissons néanmoins de conserver provisoirement les trois variables rela
 
 Nous conservons également, à ce stade, `BOD_municipal` et `BOD_industrial`, car ces variables renseignent sur les charges de pollution organique biodégradable, une dimension environnementale différente des apports en phosphore. Leur corrélation avec certaines variables phosphorées pourrait néanmoins traduire des sources de pollution communes, rendant difficile la séparation de leurs effets respectifs.
 
-Ainsi, les cinq variables explicatives restantes (`N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal` et `BOD_industrial`) sont maintenues comme prédicteurs candidats. Une vérification complémentaire de la multicolinéarité sera réalisée lors de la construction des modèles, notamment à l'aide du facteur d'inflation de la variance (VIF) (@sec-glm), afin de déterminer quelles combinaisons de variables peuvent être retenues.
+Ainsi, les six variables explicatives restantes (`N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal` et `BOD_industrial`) sont maintenues comme prédicteurs candidats. Une vérification complémentaire de la multicolinéarité sera réalisée lors de la construction des modèles, notamment à l'aide du facteur d'inflation de la variance (VIF) (@sec-glm), afin de déterminer quelles combinaisons de variables peuvent être retenues.
 
 ```{r}
 #| label: fig-correlation-nutriments-exemple
@@ -1120,7 +1120,7 @@ corrplot::corrplot(
 ```
 
 ## Imputation avec `missMDA`
-Pour affranchir notre jeux de donn'ees incomplet pour les variabels retenus `N_municipal` et `BOD_municipal` nous avons d'ecide de realiser un analyse d'imputations.
+Pour s'affranchir de notre jeux de donnéees incomplet pour les variables retenues `N_municipal` et `BOD_municipal`, nous avons décidé de réaliser une analyse d'imputation.
 
 L'analyse de stabilité des imputations multiples suggère une variabilité et une incertitude relativement limitées dans la représentation des individus et des variables dans le plan factoriel, avec des ellipses de confiance peu étendues (@fig-imputation-complete-1) et une dispersion relativement faible (@fig-imputation-complete-2). 
 
@@ -1259,7 +1259,7 @@ L’analyse exploratoire montre que la richesse phytoplanctonique et les capture
 
 **Structure spatiale et temporelle**
 
-* Les réponses varient selon le zone (`area`) et le sous-bassin (`sub_basin`).
+* Les réponses varient selon la zone (`area`) et le sous-bassin (`sub_basin`).
 * La richesse phytoplanctonique tend à augmenter dans le temps.
 * Les captures de poissons ne montrent pas de tendance claire.
 * La dimension spatio-temporelle devra donc être prise en compte.
@@ -1273,15 +1273,15 @@ L’analyse exploratoire montre que la richesse phytoplanctonique et les capture
 **Valeurs manquantes**
 
 * Variables d’azote : 17,7 % de valeurs manquantes chacune.
-* `fish_catch`: répartition de façon inégale entre sous-bassins.
+* `fish_catch` : répartition de façon inégale entre sous-bassins.
 * Pas d’imputation pour `fish_catch`, trop incertaine : on analyse les observations disponibles, avec prudence.
 
 **Colinéarité**
 
 * Variables non normales (Shapiro-Wilk), donc corrélation de Spearman (seuil |r| > 0,6 et p < 0,05).
-* `N_industrial` et `N_other` exclues, représentées par `P_industrial` et `P_other.`
+* `N_industrial` et `N_other` exclues, représentées par `P_industrial` et `P_other`.
 Variables candidates : `N_municipal`, `P_municipal`, `P_industrial`, `P_other`, `BOD_municipal`, `BOD_industrial.`
-* Corrélations résiduelles : `P_municipal`–`P_industrial`, `P_municipal`–`BOD_municipal`, `P_industrial`–`BOD_municipal` et `BOD_municipal`–`BOD_industrial.`
+* Corrélations résiduelles : `P_municipal`–`P_industrial`, `P_municipal`–`BOD_municipal`, `P_industrial`–`BOD_municipal` et `BOD_municipal`–`BOD_industrial`.
 * Ces corrélations peuvent traduire des sources de pollution communes.
 * Vérification complémentaire par le VIF lors de la modélisation.
 </details>
@@ -1290,7 +1290,7 @@ Variables candidates : `N_municipal`, `P_municipal`, `P_industrial`, `P_other`, 
 
 Afin d'évaluer l'influence du traitement des valeurs manquantes sur nos résultats, nous constituons deux versions des données : une première conservant les valeurs originales, sans imputation, et une seconde utilisant les valeurs imputées par ACP régularisée (`data.analyse.impute`).
 
-Pour chacune de ces versions, nous créons deux jeux de données distincts correspondant à nos variables réponses : la richesse phytoplanctonique (`data.analyse.phyto` et `data.analyse.phyto.impute`) et les captures de poissons (`data.analyse.fish` et `data.analyse.fish.impute`). Dans les deux cas, seules les observations disponibles on était maintenu.
+Pour chacune de ces versions, nous créons deux jeux de données distincts correspondant à nos variables réponses : la richesse phytoplanctonique (`data.analyse.phyto` et `data.analyse.phyto.impute`) et les captures de poissons (`data.analyse.fish` et `data.analyse.fish.impute`). Dans les deux cas, seules les observations disponibles ont été maintenues.
 
 ```{r}
 #| label: preparation-donnees-modeles
@@ -1413,10 +1413,10 @@ data.analyse.fish.impute <- data.analyse.impute %>%
 ```
 
 
-## Analyse multivariée
+# Analyse multivariée
 
 
-### Analyse en composantes principales (ACP)
+## Analyse en composantes principales (ACP)
 
 L'analyse en composantes principales (ACP) est utilisée afin de synthétiser l'information contenue dans les variables décrivant les apports en nutriments et de visualiser leurs relations. Cette approche permet notamment d'identifier d'éventuels gradients environnementaux et de mettre en évidence les variables contribuant le plus à la variabilité observée.
 
@@ -1490,7 +1490,7 @@ Le premier axe (Axe1), qui explique 49,3 % de la variance totale, est principale
 Le second axe (Axe2), qui explique 30,2 % de la variance totale, est essentiellement structuré par P_other et N_municipal. Cet axe traduit donc un second gradient environnemental relativement indépendant du premier.
 
 
-#### Contribution des variables aux axes principaux
+##### Contribution des variables aux axes principaux
 
 Afin d'interpréter les gradients identifiés par l'ACP, nous examinons la contribution des différentes variables aux premiers axes.
 
@@ -1518,7 +1518,7 @@ fviz_contrib(res.pca,
   labs(x = "Variables",
        y = "Contribution (%)")
 ```
-L'examen des contributions des variables montre que l'axe 1 est principalement structuré par BOD_municipal, P_municipal, P_industrial et BOD_industrial (@fig-pca-contrib1), tandis que l'axe 2 est essentiellement porté par P_other et N_municipal  (@fig-pca-contrib2). Ces résultats confirment l'existence de deux gradients environnementaux distincts au sein des apports en nutriments.
+L'examen des contributions des variables montre que l'axe 1 est principalement structuré par BOD_municipal, P_municipal, P_industrial et BOD_industrial (@fig-pca-contrib1), tandis que l'axe 2 est essentiellement porté par P_other et N_municipal (@fig-pca-contrib2). Ces résultats confirment l'existence de deux gradients environnementaux distincts au sein des apports en nutriments.
 
 
 #### Répartition des observations dans l'espace multivarié
@@ -1546,10 +1546,10 @@ fviz_pca_ind(res.pca,
        y = "Axe 2 (30,2 %)")
 ```
 La projection des observations sur les deux premiers axes de l'ACP met en évidence une séparation nette entre les zones Central Paijanne et Northen Paijanne (@fig-pca-individus). Cette différenciation est principalement portée par l'axe 2, associé notamment à N_municipal et P_other (@fig-pca-correlation).
-Ces résultats indiquent que la variable area constitue une source importante de variation environnementale et devra être prise en compte dans les analyses ultérieures.
+Ces résultats indiquent que la variable `area` constitue une source importante de variation environnementale et devra être prise en compte dans les analyses ultérieures.
 
-#### Analyses statistiques 
-Afin de tester statistiquement la séparation observée sur l'ACP, nous avons réalisé une analyse de variance multivariée par permutation (PERMANOVA) à partir des six variables environnementales retenues.
+### Analyses statistiques 
+Afin de tester statistiquement la séparation observée dans l'ACP, nous avons réalisé une analyse de variance multivariée par permutation (PERMANOVA) à partir des six variables environnementales retenues.
 ```{r}
 #| label: test_permanova
 #| echo: false
@@ -1574,7 +1574,7 @@ resultat.permanova <- vegan::adonis2(distance.euclidienne ~ area,
 
 resultat.permanova
 ```
-Les résultats indiquent une différence significative entre les zones Central Paijanne et Northen Paijanne (R² = 0,273 ; p = 0,001), suggérant que la variable area explique 27,3 % de la variabilité observée des apports en nutriments et de la demande biologique en oxygène.
+Les résultats indiquent une différence significative entre les zones Central Paijanne et Northen Paijanne (R² = 0,273 ; p = 0,001), suggérant que la variable `area` explique 27,3 % de la variabilité observée des apports en nutriments et de la demande biologique en oxygène.
 
 Afin de vérifier que cette différence ne résulte pas d'une dispersion différente des observations entre les groupes, un test de dispersion multivariée (PERMDISP) a été réalisé.
 ```{r}
@@ -1591,10 +1591,10 @@ Ce test ne met pas en évidence de différence significative entre les dispersio
 
 Les résultats de la PERMANOVA peuvent donc être interprétés comme reflétant une différence réelle de composition environnementale entre les deux secteurs étudiés.
 
-## conclusion 
+### Conclusion de l'ACP
 Dans l'ensemble, l'ACP met en évidence deux gradients environnementaux principaux résumant 79,5 % de la variabilité des apports en nutriments et de la demande biologique en oxygène. Elle révèle également une différenciation nette entre les zones Central Paijanne et Northen Paijanne. Cette séparation visuelle est confirmée par la PERMANOVA, qui met en évidence une différence significative entre les deux zones (R² = 0,273 ; p = 0,001). Le test de PERMDISP n'étant pas significatif (p = 0,836), cette différence ne résulte pas d'une dispersion différente des observations entre les groupes, mais reflète bien une différence de composition environnementale. Ces résultats justifient ainsi la prise en compte de la structure spatiale dans les analyses multivariées suivantes.
 
-### RDA
+## RDA
 
 Bien que l'analyse de redondance (RDA) permette d'étudier simultanément les relations entre plusieurs variables réponses et un ensemble de prédicteurs environnementaux, nous avons choisi de privilégier une approche de modélisation univariée pour les analyses principales.
 
@@ -1862,7 +1862,7 @@ plot(
 
 ##### Résultats de la RDA partielle et interprétation des partitions
 
-Les deux diagrammes (@fig-prda-partition-2 et @fig-prda-partition-3) permettent de quantifier la part de variation biologique associée aux apports environnementaux, mettant en évidence l'importance de la structure temporelle et spatiales. Cependant, ces assoications ne permettent pas à elles seules établir des relations cause à effet. Nous retenons donc le **conditionnement par `year + sub_basin`** pour examiner les associations propres aux quatre apports environnementaux sélectionnés.
+Les deux diagrammes (@fig-prda-partition-2 et @fig-prda-partition-3) permettent de quantifier la part de variation biologique associée aux apports environnementaux, mettant en évidence l'importance de la structure temporelle et spatiale. Cependant, ces associations ne permettent pas à elles seules d'établir des relations cause à effet. Nous retenons donc le **conditionnement par `year + sub_basin`** pour examiner les associations propres aux quatre apports environnementaux sélectionnés.
 
 La RDA partielle finale explique **7,09 % de la variation restant après conditionnement** ($R^2$ brut = 0,0709). Son $R^2$ ajusté est de **3,78 %** : cette contribution propre des apports à l'échelle de la variation totale ajustée correspond à la zone environnementale exclusive des deux diagrammes.
 
@@ -1883,7 +1883,7 @@ tibble::tibble(
 ##### Tests de permutation exploratoires
 Nous avons choisi de ne pas réaliser les tests de permutation habituellement associés à la RDA partielle (test global, les tests par axe et les tests séquentiels et marginaux), en raison de la structure de nos données. Plusieurs sous-bassins partagent les mêmes valeurs environnementales pour une combinaison donnée d'année et de secteur (year × area), tandis que les observations successives peuvent présenter une autocorrélation temporelle. Nous limitons donc cette RDA partielle à une analyse exploratoire et descriptive, fondée sur le $R^2$ ajusté.
 
-##### Conclusion et Représentation de l'ordination partielle finale
+##### Conclusion et représentation de l'ordination partielle finale
 
 Le biplot représente les relations entre les deux réponses biologiques et les **quatre** gradients environnementaux retenus, après retrait de la tendance temporelle linéaire et des différences moyennes entre sous-bassins (@fig-prda-conjointe). Son interprétation doit tenir compte de la faible fraction d'inertie expliquée et des limites des observations répétées.
 
@@ -1908,8 +1908,8 @@ plot(rda.partielle, scaling = 2, display = c("sp", "bp"))
 _Cette analyse conjointe explore les gradients communs aux captures de poissons et à la richesse phytoplanctonique ; elle ne permet pas de quantifier indépendamment la réponse propre à chaque indicateur avec une famille statistique adaptée. Cet objectif sera poursuivi dans les modèles univariés._
 
 <details>
-
-# Partie Phytoplankton
+# Modèles dénéralisés
+## Partie Phytoplankton
 ```{r}
 # Fonctions utilitaires
 fmt.p = function(p) sapply(p, function(x) format.pval(x, digits = 3, eps = 0.001))
@@ -1927,11 +1927,11 @@ tab.effets = function(m) {
   out
 }
 ```
-## GLM / GLMM de la richesse phytoplanctonique {#sec-glm}
+### GLM / GLMM de la richesse phytoplanctonique {#sec-glm}
 
-Cette partie modélise la richesse phytoplanctonique (nombre de taxons par sous-bassin et par année) en fonction des apports en nutriments, en conservant séparées les différentes sources de rejets (modèles non agrégés). La démarche comprend la préparation des données, définition des hypothèses (sous-modèles), choix de la loi, sélection du meilleur modèle par le ΔAIC, analyse des coefficients, puis diagnostic du modèle retenu, dont la vérification de la colinéarité (VIF). Des perspectives concluent la partie.
+Cette partie modélise la richesse phytoplanctonique (nombre de taxons par sous-bassin et par année) en fonction des apports en nutriments, en conservant séparées les différentes sources de rejets (modèles non agrégés). La démarche comprend la préparation des données, la définition des hypothèses (sous-modèles), choix de la loi, sélection du meilleur modèle par le ΔAIC, analyse des coefficients, puis diagnostic du modèle retenu, dont la vérification de la colinéarité (VIF). Des perspectives concluent la partie.
 
-### Préparation des données
+#### Préparation des données
 
 Les variables explicatives sont les apports de six sources : le phosphore municipal, industriel et autre (`P_municipal`, `P_industrial`, `P_other`), l'azote municipal (`N_municipal`) ainsi que la DBO municipale et industrielle (`BOD_municipal`, `BOD_industrial`). L'azote industriel et l'azote autre sont exclus, car ils sont corrélés au phosphore et comportent de nombreuses valeurs manquantes (voir la section @sec-correlation). L'azote municipal présente 17 valeurs manquantes, ce qui entraîne la perte de 3 observations de richesse. Tous les modèles sont ajustés sur les mêmes observations, condition nécessaire pour que leurs AIC soient comparables.
 
@@ -2004,12 +2004,12 @@ L'année et le sous-bassin sont introduits comme effets aléatoires, `(1 | annee
 }
 ```
 
-Le jeu de modélisation contient `r nrow(data.analyse.phy.GLMM)` observations sur `r nrow(data.analyse.phyto)`, réparties sur `r nlevels(data.analyse.phy.GLMM$annee)` années et `r nlevels(data.analyse.phy.GLMM$sub_basin)` sous-bassins.
+Le jeu de données modélisation contient `r nrow(data.analyse.phy.GLMM)` observations sur `r nrow(data.analyse.phyto)`, réparties sur `r nlevels(data.analyse.phy.GLMM$annee)` années et `r nlevels(data.analyse.phy.GLMM$sub_basin)` sous-bassins.
 
 
-### Variables non-agrégées
+#### Variables non-agrégées
 
-#### Définition des hypothèses (sous-modèles)
+##### Définition des hypothèses (sous-modèles)
 
 Huit hypothèses, combinant les trois types d'apports, sont comparées. Le modèle M0 est ajouté comme référence : il ne contient aucun nutriment (seulement les effets aléatoires) et permet d'évaluer l'apport global des nutriments.
 
@@ -2022,7 +2022,7 @@ Huit hypothèses, combinant les trois types d'apports, sont comparées. Le modè
 - M6 : la DBO et l'azote municipal influencent la richesse ;
 - M7 : toutes les sources influencent la richesse (modèle complet).
 
-#### Choix de la loi
+##### Choix de la loi
 La richesse est un nombre de taxons, soit une variable de comptage. La loi de Poisson, qui suppose une variance égale à la moyenne, constitue le choix initial. Cette hypothèse est vérifiée par la dispersion du modèle complet (M7), c'est-à-dire le rapport entre la somme des carrés des résidus de Pearson et les degrés de liberté résiduels. Une dispersion proche de 1 (inférieure à 1,2 environ) valide la loi de Poisson. Une dispersion nettement supérieure à 1 (au-delà de 1,5 environ) indique une surdispersion et conduit à la loi binomiale négative (`nbinom2`). Le principe est présenté dans le cours (diapositive « Poisson model and overdispersion ») ; les seuils chiffrés sont des repères usuels (par exemple Zuur et al. 2009).
 
 ```{r}
@@ -2076,11 +2076,11 @@ tibble(
 ```
 
 
-#### Faut-il séparer le Nord et le Centre des modèles ?
+##### Faut-il séparer le Nord et le Centre des modèles ?
 
 L'analyse exploratoire et l'ACP ont mis en évidence des différences environnementales entre les secteurs Nord et Centre du lac Päijänne, confirmées par la PERMANOVA (R² = 0,273 ; p = 0,001). Cependant, ces différences dans les apports en nutriments n'impliquent pas nécessairement que leurs effets sur la richesse phytoplanctonique soient différents selon le secteur.
 
-Afin d'examiner cette hypothèse, nous comparons deux GLMM : un modèle avec des effets communs des nutriments aux deux secteurs (area + apports) et un modèle incluant des interactions entre le secteur et chacun des six apports (area * apports). La comparaison repose sur le critère d'information d'Akaike (AIC) et sur un test du rapport de vraisemblance..
+Afin d'examiner cette hypothèse, nous comparons deux GLMM : un modèle avec des effets communs des nutriments aux deux secteurs (area + apports) et un modèle incluant des interactions entre le secteur et chacun des six apports (area * apports). La comparaison repose sur le critère d'information d'Akaike (AIC) et sur un test du rapport de vraisemblance.
 
 ```{r}
 #| label: tbl-test-secteur-1
@@ -2165,7 +2165,7 @@ knitr::kable(
 
 L'interaction entre le secteur et les apports n'améliore pas significativement le modèle (p = `r fmt.p(comp$"Pr(>Chisq)"[2])`, et l'AIC ne diminue pas). Un modèle unique est donc ajusté pour l'ensemble du lac. Ce résultat étant proche du seuil de 5 %, la question des secteurs est reprise dans les perspectives.
 
-#### Écriture des modèles
+##### Écriture des modèles
 Après avoir examiné la distribution de la richesse phytoplanctonique et comparé les modèles avec et sans interactions entre les apports en nutriments et les secteurs géographiques, nous retenons une structure commune pour l'ensemble du lac. La variable `area` est conservée comme effet fixe afin de prendre en compte les différences générales entre les secteurs Nord et Centre.
 
 Nous définissons ensuite huit modèles (M0 à M7), correspondant aux différentes hypothèses sur les relations entre les apports en nutriments et la richesse phytoplanctonique. Nous illustrons l'exemple du modèle M1 dans @lst-modele-glmm.
@@ -2244,7 +2244,7 @@ M6.phy <- modeles.phy[[7]]
 M7.phy <- modeles.phy[[8]]
 ```
 
-#### Sélection du meilleur modèle
+##### Sélection du meilleur modèle
 
 Les hypothèses sont comparées par le critère d'information d'Akaike (AIC), plutôt que par les p-values. L'AIC mesure la qualité d'ajustement en pénalisant le nombre de paramètres. Le ΔAIC correspond à l'écart avec le meilleur modèle : plus il est faible, meilleur est le modèle, et deux modèles distants de moins de 2 points sont considérés comme équivalents. Le poids d'Akaike représente la probabilité relative de chaque modèle parmi l'ensemble comparé : plus il est élevé, meilleur est le modèle.
 
@@ -2320,9 +2320,9 @@ if (requireNamespace("kableExtra", quietly = TRUE)) {
 tableau.classement
 ```
 
-### Analyse des coefficients du modèle
+#### Analyse des coefficients du modèle
 
-#### Analyse des effets fixes
+##### Analyse des effets fixes
 Nous examinons les coefficients du modèle M3 retenu afin d'évaluer le sens et l'amplitude des associations entre les différentes sources de phosphore et la richesse phytoplanctonique.
 
 Les résultats du modèle linéaire généralisé mixte (GLMM avec distribution de Poisson, basé sur 116 observations) montrent qu'après avoir pris en compte la variabilité naturelle temporelle (par `année`) et spatiale (par `sous-bassin`), la richesse de base en phytoplancton est d'environ `r round(exp(4.086),0)` espèces ($exp^{4.086}$; ordonnée à l'origine = $4,086$, $p < 0,001$). Cette valeur de base correspond à la zone géographique « Centrale » (qui sert de catégorie de référence, incluse dans l'ordonnée à l'origine) dans des conditions moyennes de nutriments. 
@@ -2337,7 +2337,7 @@ Enfin, la variable `area` de `Northen Paijanne` n'est pas significative ($p = 0,
 #| warning: false
 summary(M3.phy)
 ```
-#### Analyse des effets aléatoires
+##### Analyse des effets aléatoires
 Les effets aléatoires permettent de tenir compte de l'hétérogénéité entre les années et les sous-bassins.
 
 Les variances associées à l'année et au sous-bassin permettent de comparer l'importance de l'hétérogénéité entre ces deux niveaux de regroupement.
@@ -2352,7 +2352,7 @@ VarCorr(M3.phy)
 #  annee     (Intercept) 0.138600
 #  sub_basin (Intercept) 0.034733
 ```
-#### Intervalles de confiance des coefficients
+##### Intervalles de confiance des coefficients
 Les intervalles de confiance (IC) permettent d'évaluer l'incertitude des estimations des écarts-types associés aux facteurs aléatoires (`annee` et `sub_basin`) et d'examiner la variabilité de la richesse phytoplanctonique entre les groupes.
 
 * Pour le facteur `annee`, le modèle estime un écart-type interannuel de 0,139, avec un intervalle de confiance à 95 % de [0,101 ; 0,192]. Cet intervalle exclut zéro, ce qui suggère une variabilité de la richesse phytoplanctonique entre les années, même après prise en compte des effets fixes du modèle.
@@ -2380,7 +2380,7 @@ exp(IC.random[, c("2.5 %", "97.5 %")]) # comme nous travaillons a l'echelle log,
 # => mais cela ne marche pas car adapté pour GLM donc utilisation de confint
 ```
 
-#### Pouvoir explicatif du modèle
+##### Pouvoir explicatif du modèle
 Le pouvoir explicatif du modèle est évalué à partir des coefficients de détermination marginal et conditionnel de Nakagawa.
 
 Le R² marginal correspond à la contribution des effets fixes, tandis que le R² conditionnel prend également en compte les effets aléatoires.
@@ -2391,12 +2391,12 @@ Le coefficient de détermination marginal de Nakagawa est de 0,253, indiquant qu
 performance::r2_nakagawa(M3.phy)
 ```
 
-### Diagnostic du modèle choisi
+#### Diagnostic du modèle choisi
 Le modèle M3 étant un GLMM de Poisson avec une fonction de lien logarithmique, il ne nécessite ni la normalité des résidus ni l'homogénéité des variances au sens d'un modèle gaussien. 
 
 En revanche, la loi de Poisson suppose une égalité entre la moyenne et la variance conditionnelles. Nous vérifions donc la dispersion, l'absence de structure systématique dans les résidus,  influentes et la multicolinéarité des variables explicative du modele.
 
-#### Vérification de la surdispersion
+##### Vérification de la surdispersion
 ```{r}
 #| label: calc-pearson-disp
 #| echo: false
@@ -2420,10 +2420,10 @@ tibble(
 ) |>
   knitr::kable(digits = 3)
 ```
-#### Analyse des résidus de Pearson
+##### Analyse des résidus de Pearson
 Nous examinons la distribution des résidus de Pearson à l'aide d'un histogramme et d'un graphique Quantile-Quantile. Ces représentations sont descriptives : la normalité des résidus n'est pas une condition d'application du modèle de Poisson.
 
-##### Distribution des résidus
+###### Distribution des résidus
 L'histogramme permet de décrire la distribtion des résidus et de repérer d'éventuelles valeurs extrêmes : nous pouvons observer que la distribution des résidus de Pearson est symétrique, centrée autour de zéro et ne présente pas de valeurs aberrantes notables (les valeurs se concentrent entre -2 et 2 ; @fig-distribution-residus). Le QQ-plot normal est utilisé uniquement à titre descriptif, la normalité n'étant pas une hypothèse du GLMM de Poisson.
 
 ```{r}
@@ -2461,7 +2461,7 @@ qqline(residus.pearson, col = "red3")
 par(mfrow = c(1, 1))
 ```
 
-##### Résidus en fonction des valeurs ajustées
+###### Résidus en fonction des valeurs ajustées
 Nous représentons les résidus de Pearson en fonction des valeurs prédites afin de détecter d'éventuelles tendances ou structures non prises en compte par le modèle.
 
 ```{r}
@@ -2556,14 +2556,14 @@ diag.m3 %>%
   labs(x = "Valeur standardisée", y = "Résidus de Pearson")
 ```
 
-#### Vérification des observations influentes
+##### Vérification des observations influentes
 L'influence individuelle des observations n'a pas été évaluée à l'aide de la distance de Cook, cette méthode n'étant pas directement disponible pour le modèle ajusté avec `glmmTMB`. Cette absence de diagnostic constitue une limite de la validation.
 
 ```{r}
 # cooks.distance(M3.phy) => marche pas
 ```
 
-#### Vérification complémentaire avec DHARMa
+##### Vérification complémentaire avec DHARMa
 Nous complétons les diagnostics précédents à l'aide du package `DHARMa`, qui permet de comparer les résidus simulés aux propriétés attendues sous le modèle ajusté.
 
 L'analyse des résidus simulés avec DHARMa ne montre aucun problème de dispersion ($p = 0,804$ ; @tbl-tests-dharma), ni d'inflation de zéros ($p = 1,000$ ; @tbl-tests-dharma). En revanche, le test d'uniformité de Kolmogorov-Smirnov est significatif ($p = 0,0197$ ; @tbl-tests-dharma). Cela suggère une légère déviation entre la distribution des résidus observés et celle attendue. La structure et la dispersion de type Poisson restent globalement correctes. Cependant, quelques déviations de quantiles sont visibles graphiquement (@fig-dharma-m3). On peut supposer que dans un contexte écologique comme le notre, ces légers écarts peuvent refléter des facteurs externes non mesurés et ils peuvent aussi indiquer une relation légèrement non linéaire à l'échelle log. Malgré cela, le modèle demeure robuste pour l'inférence principale.
@@ -2623,7 +2623,7 @@ tibble(
 ) |>
   knitr::kable(digits = 4)
 ```
-#### Vérification multicolinéarité
+##### Vérification multicolinéarité
 Enfin, la colinéarité est évaluée par le facteur d'inflation de la variance (VIF), pour le modèle retenu et, à titre de comparaison, pour le modèle complet. La colinéarité est généralement jugée faible en dessous de 5, modérée entre 5 et 10, et forte au-delà de 10.
 
 ```{r}
@@ -2658,7 +2658,7 @@ kable(vif.tab)
 ```
 
 
-### Discussion sur les facteurs qui influencent la richesse du phytoplancton
+#### Discussion sur les facteurs qui influencent la richesse du phytoplancton
 
 Le modèle M3, fondé sur les apports de phosphore, présente le meilleur compromis entre ajustement et complexité selon ΔAIC. Seul le phosphore industriel montre une association négative proche du seuil de significativité. Les effets aléatoires, principalement celui de l'année, contribuent fortement au pouvoir explicatif du modèle.
 
@@ -2667,8 +2667,8 @@ Bien que la dispersion soit compatible avec une loi de Poisson, le test d'unifor
 Il est également important de rappeler que le phosphore industriel est corrélé à l'azote industriel, exclu des modèles. Ainsi, l'association observée avec la richesse phytoplanctonique pourrait également être liée aux apports d'azote industriel, sans que leur contribution puisse être confirmée par les modèles étudiés.
 
 ::: {.callout-note collapse="true" title="Perspectives de la richesse phytoplanctonique"}
-### Perspectives
-#### Moyenne de modèles
+#### Perspectives
+##### Moyenne de modèles
 
 Quatre modèles présentent un ΔAIC inférieur à 2 (M3, M4, M5 et M7). Plutôt que d'en retenir un seul, il est possible de calculer la moyenne de leurs coefficients, pondérée par les poids d'Akaike, ce qui intègre l'incertitude liée au choix du modèle. Lorsqu'une variable est absente d'un modèle, son coefficient est fixé à 0 dans ce modèle.
 
@@ -2693,7 +2693,7 @@ kable(moyenne.modeles(res))
 
 Les phosphores municipal et industriel présentent tous deux un effet moyen négatif (environ −7 % et −6 %), tandis que les autres sources ont des effets moyens faibles (inférieurs à 4 % en valeur absolue). Ce résultat va dans le même sens que M3 : seul le phosphore se distingue, et il est associé négativement à la richesse.
 
-#### Année en effet fixe
+##### Année en effet fixe
 
 Une variante consiste à reprendre les modèles en transformant les effets aléatoires en effets fixes. Cette transformation est appliquée à l'année, traitée ici comme une variable numérique centrée-réduite (tendance globale), le sous-bassin restant en effet aléatoire.
 
@@ -2725,7 +2725,7 @@ tibble(
 
 Lorsque l'année est une tendance fixe, elle explique l'essentiel de la variation (+`r round(100 * (exp(glmmTMB::fixef(m0.fixe)$cond["yr"]) - 1), 0)` % de richesse par écart-type) et le phosphore industriel n'a plus d'effet. Les nutriments n'améliorent alors plus le modèle : l'AIC de M3 (`r round(AIC(m3.fixe), 1)`) est supérieur à celui de M0 (`r round(AIC(m0.fixe), 1)`). L'effet du phosphore industriel observé précédemment provient donc très probablement de la tendance temporelle, les apports ayant diminué pendant que la richesse augmentait. Il s'agit de la principale limite de cette partie, dont il faut tenir compte avant de conclure à un effet du phosphore.
 
-#### Valeurs ajustées contre valeurs observées
+##### Valeurs ajustées contre valeurs observées
 
 Afin d'évaluer la capacité prédictive du modèle, les valeurs ajustées de M3 sont comparées aux richesses observées.
 
@@ -2747,7 +2747,7 @@ ggplot(diag.m3, aes(ajuste, phyto_richness, colour = area)) +
 
 La corrélation entre valeurs ajustées et observées est de `r round(cor(diag.m3$ajuste, diag.m3$phyto_richness), 2)`. Les valeurs ajustées incluent les effets aléatoires, en particulier celui de l'année : cette corrélation surestime donc ce que les seuls nutriments permettent de prédire.
 
-#### Un modèle par secteur
+##### Un modèle par secteur
 
 Le test présenté plus haut étant proche du seuil (p = `r fmt.p(comp$"Pr(>Chisq)"[2])`), le classement des hypothèses est refait dans chaque secteur, avec des variables standardisées au sein du secteur.
 
@@ -2807,16 +2807,16 @@ kable(par.secteur)
 
 Le classement diffère entre les deux secteurs, et aucun d'eux ne retient M3. Dans les deux cas, le meilleur modèle contient l'azote municipal, qui ne se distinguait pas sur l'ensemble du lac. La conclusion du modèle commun reste donc fragile.
 
-#### Autres pistes
+##### Autres pistes
 
 - Les apports sont mesurés par secteur et par année, puis recopiés sur chaque sous-bassin : les observations d'un même secteur et d'une même année ne sont donc pas indépendantes pour ces variables (pseudo-réplication). Il serait pertinent de vérifier que les conclusions se maintiennent sur des moyennes par secteur et par année.
 - Les sources sont fortement corrélées entre elles (par exemple le phosphore municipal et la DBO municipale, r = `r round(cor( data.analyse.phy.GLMM$z_P_municipal,  data.analyse.phy.GLMM$z_BOD_municipal), 2)`). Le regroupement des sources en totaux de phosphore et de DBO réduirait cette colinéarité.
 - L'autocorrélation des résidus d'une année à l'autre (`r round(autocorr, 2)`) suggère de tester une structure de corrélation temporelle.
 :::
 
-### Partie Fish catch
-#### GLMM
-##### Variables non-agrégées
+## Partie captures des poissons (fish catch)
+### GLMM
+#### Variables non-agrégées
 
 ###### Hypothèses des modèles
 - M1 (`m_fish_N`) : seul l'azote a un effet sur les captures dépendamment de l'origine du rejet 
@@ -2829,7 +2829,7 @@ Le classement diffère entre les deux secteurs, et aucun d'eux ne retient M3. Da
 
 Chacun des modèles intègre en effet aléatoire les sous-bassin (1|sub-basin) et l'année (1|year) pour se concentrer sur l'effet des nutriments et ainsi construire un modèle davantage adapté à la question de recherche. Cela permet de contrôler une partie de la variabilité des données non expliquée par les nutriments et d'éviter de l'attribuer à tort à ces derniers. Pour les mêmes raisons et sachant que la zone géographique (area) a un rôle dans la variabilité comme envisagé dans la partie exploratoire, il a été choisi de rajouter area en effet fixe à ces modèles.    
 
-###### Choix de la loi {#sec-fish-choix-model}
+##### Choix de la loi {#sec-fish-choix-model}
 
 Les données sont quantitatives continues, ainsi nous explorons la viabilité d'un GLMM suivant la loi Gamma.
 
@@ -2930,7 +2930,7 @@ Le GLMM de la famille Gamma semble etre mieux adapté aux données que le LME ap
 Malgré un léger signal de surdispersion, les résidus sont globalement proche de la distribution uniforme 
 attendue. Il convient d'interpréter le modèle avec prudence mais celui-ci reste relativement adéquat au regard de ces analyses. 
 
-###### Définition des modèles
+##### Définition des modèles
 
 Modèle N (M1): $$
 \text{fish\_catch} \sim N_{\text{municipal}} + \text{area} + (1|\text{sub\_basin}) + (1|\text{year})$$
@@ -3027,7 +3027,7 @@ m_fish_Complet <- glmmTMB(
 )
 ```
 
-###### Recherche du meilleur modèle via deltaAIC
+##### Recherche du meilleur modèle via deltaAIC
 
 Comparaison AIC 
 
@@ -3049,7 +3049,7 @@ models_fish
 ```
 Le modèle minimisant l'AIC s'avère etre le modèle NB comprenant l'azote et BOD (AIC=-101)
 
-###### Diagnostic du modèle choisi
+##### Diagnostic du modèle choisi
 
 ```{r}
 #| label: diag-NB
@@ -3088,7 +3088,7 @@ Le diagnostic du modèle le valide en grande partie bien qu'un point de vigilanc
 
 Afin d'appréhender cette surdispersion un modèle construit sans area en effet fixe et year en effet aléatoire à été testé. La dispersion relative au résidus simulés de ce modèle s'est avérée non-significative (Disp = 1.483, pvalue = 0.411). Néanmoins, ce modèle retirant une variable importante susceptible de modifier artificiellement les coefficients des variables nutriments après retrait (area), il a été décidé de conserver le modèle choisi initialement.  
 
-###### Analyse des coefficients du modèle choisi
+##### Analyse des coefficients du modèle choisi
 
 ```{r}
 #| label: mod-fish-NBsum
@@ -3097,7 +3097,7 @@ summary(m_fish_NB)
 BOD_municipal présente un coefficient de 0.1772 pour une pvalue significative de 0.029. Cet effet à prendre avec prudence au regard de la surdispersion du modèle, suggère que la BOD est positivement corrélée aux captures pour les rejets municipaux. Cependant, cet effet s'inverse concernant les rejets industriels (estimate = -0.146, pvalue = 0.0458), la pvalue reste très proche du seuil de 0.05 pour cet effet. L'effet de l'azote associé aux rejets municipaux ne s'avère pas significatif. Le coefficient positif (estimate = 0.278) suggère néanmoins qu'il y aurait un lien positif entre la biomasse de poissons et la concentration en azote. Enfin, la zone Northen Paijane semble fortement corrélée négativement avec les captures de poissons (estimate = -0.641) bien que cette corrélation ne soit pas significative (pvalue = 0.088). 
 
 
-###### Représentation graphique finale du modèle choisi
+##### Représentation graphique finale du modèle choisi
 
 ```{r}
 # Réprésentation graphique 
@@ -3132,7 +3132,7 @@ ggplot(predictions, aes(x = x, y = predicted)) +
   theme_bw()
 ```
 
-##### Discussion fish catch
+### Discussion fish catch
 
 Le modèle conservé pour l'interprétation des effets des nutriments sur les captures de poissons a permis de mettre en évidence plusieurs effets potentiels. Ces effets sont à prendre avec prudence sachant que le modèle présente une surdispersion. Ils concernent uniquement la demande biologique en oxygène (BOD) qui traduit indirectement la quantité de matière organique biodégradable. Celle-ci a d'un côté un effet positif sur la quantité de capture lorsqu'elle provient des rejets municipaux et de l'autre un effet négatif lorsqu'elle provient des rejets industriels. Cette ambivalence dans l'effet de ce facteur pourrait mettre en cause une différence dans la "qualité" de la matière organique selon le type de rejet. L'une pouvant potentiellement favoriser la chaine trophique et donc la croissance des populations de poissons quand l'autre la défavorise.  
 
@@ -3140,8 +3140,12 @@ Le modèle conservé pour l'interprétation des effets des nutriments sur les ca
 # Conclusion génèrale
 
 
+
+
+
+
 # Annexe
-Cette partie constitue du code réaliser mais non finaliser ou pas explorer complètement. Celui-ci ne sera pas présenter, mais servira d'appuie pour certaines questions ou prespectives présenter lors de la présentation.
+Cette partie constitue du code réaliser mais non finaliser ou pas explorer complètement. Celui-ci ne sera pas présenter lors de l'oral, mais servira d'appuie pour certaines questions ou prespectives lors de la présentation.
 
 ::: {.callout-note collapse="true" title="Analyses complémentaires de la richesse phytoplanctonique"}
 
